@@ -1,0 +1,4 @@
+CREATE SEQUENCE if not exists xxi.s_mi_person START WITH 1 INCREMENT BY 1 MINVALUE 1 CACHE 5 NO CYCLE
+;
+ALTER SEQUENCE xxi.s_mi_person OWNER TO "XXI"
+;
