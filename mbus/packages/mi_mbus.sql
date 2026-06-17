@@ -86,8 +86,8 @@ BEGIN
    );
 
    IF p_req_id IS NULL THEN
-      CALL MI_resultCtx.raise_failed( p_result_Code => c_err_Not_Found, p_result_Info => 'p_req_id is required', 
-                                      p_parameters  => jsonb_build_object( 'req_id', p_req_id,'call_uuid', l_call_uuid ) );
+      CALL MI_resultCtx.raise_fail( p_result_Code => c_err_Not_Found, p_result_Info => 'p_req_id is required', 
+                                    p_parameters  => jsonb_build_object( 'req_id', p_req_id,'call_uuid', l_call_uuid ) );
    END IF;
 
    -- Загружаем параметры запросы контейнера.
@@ -340,24 +340,29 @@ BEGIN
 EXCEPTION
 
    WHEN OTHERS THEN
-
+   DECLARE
+      ex TS.T_StackedDiagnostics;
+      l_error_Text varchar;
+   begin
       GET STACKED DIAGNOSTICS
-         ex_sqlstate = RETURNED_SQLSTATE,
-         ex_message  = MESSAGE_TEXT,
-         ex_detail   = PG_EXCEPTION_DETAIL,
-         ex_hint     = PG_EXCEPTION_HINT,
-         ex_context  = PG_EXCEPTION_CONTEXT;
+          ex.RETURNED_SQLSTATE    = RETURNED_SQLSTATE,  
+          ex.MESSAGE_TEXT         = MESSAGE_TEXT,
+          ex.PG_EXCEPTION_DETAIL  = PG_EXCEPTION_DETAIL,
+          ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
+          ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
+      
+          l_error_Text := TS.WhenOthersError('mi_mbus.send_request', ex);
 
-      /*
-         Любая ошибка, ожидаемая или неожиданная,
-         превращается в MI_resultCtx.exec_Result.
-      */
-      p_result := MI_resultCtx.from_exception(
-         p_sqlstate => ex_sqlstate,
-         p_message  => ex_message,
-         p_detail   => ex_detail,
-         p_hint     => ex_hint
-      );
+         /*
+            Любая ошибка, ожидаемая или неожиданная,
+            превращается в MI_resultCtx.exec_Result.
+         */
+         p_result := MI_resultCtx.from_exception(
+            p_sqlstate => ex_sqlstate,
+            p_message  => ex_message,
+            p_detail   => ex_detail,
+            p_hint     => ex_hint
+         );
 
       /*
          Если это не наше структурированное MI001-исключение,
@@ -398,6 +403,8 @@ EXCEPTION
       );
 
       RETURN;
+
+   end;   
 END;
 $procedure$
 

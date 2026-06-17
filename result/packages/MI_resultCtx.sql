@@ -165,7 +165,7 @@ BEGIN
         left(p_cause_code, 200)::varchar(200),
         left(p_cause_info, 1000)::varchar(1000),
         p_cause_details,
-        null
+        MI_resultCtx.normalize_parameters(p_parameters)
     )::MI_resultCtx.exec_Result;
 END;
 $function$

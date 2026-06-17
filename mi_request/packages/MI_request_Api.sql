@@ -130,14 +130,13 @@ AS
 $function$
    #package
 DECLARE
-   l_inf_Id numeric;   
+   l_inf_Id numeric;
 BEGIN
 
-    select inf_id 
-      into l_inf_Id 
-      from MI_inf 
-     where 
-           inf_Id = p_req_id;
+   SELECT r.inf_id
+          INTO l_inf_id
+     FROM xxi.mi_req r
+    WHERE r.req_id = p_req_id;
 
    RETURN l_inf_Id;
 

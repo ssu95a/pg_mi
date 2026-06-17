@@ -1,15 +1,15 @@
 --
--- РўР°Р±Р»РёС†Р°    : xxi.mi_req
--- РќР°Р·РЅР°С‡РµРЅРёРµ : Р РµРµСЃС‚СЂ Р·Р°РїСЂРѕСЃРѕРІ РІ РјРѕРґСѓР»Рё РЎРњР­Р’
--- РћРїРёСЃР°РЅРёРµ   : РҐСЂР°РЅРёС‚ РІСЃРµ Р·Р°РіРѕР»РѕРІРєРё Р·Р°РїСЂРѕСЃРѕРІ. РСЃС…РѕРґРЅРёРє РґР»СЏ VIEW РїРѕ РІРёРґР°Рј СЃРІРµРґРµРЅРёР№. РџР°СЂС‚РёС†РёСЂРѕРІР°РЅРЅР°СЏ РїРѕ inf_id. РќРµС‚ PK!
--- Р’РµСЂСЃРёСЏ     : 0.5, 28.05.2026
+-- Таблица    : xxi.mi_req
+-- Назначение : Реестр запросов в модули СМЭВ
+-- Описание   : Хранит все заголовки запросов. Исходник для VIEW по видам сведений. Партицированная по inf_id. Нет PK!
+-- Версия     : 0.5, 28.05.2026
 -- 
 CREATE TABLE IF NOT EXISTS xxi.mi_req (
 -- +---------------------------------------------------------------------------
 -- |   column     |    type     |    null   | default 
 -- +---------------------------------------------------------------------------
       req_id          numeric(12)  NOT NULL,
-      external_uuid   uuid         NOT NULL   DEFAULT gen_random_uuid(),    
+      external_uuid   uuid         NOT NULL   DEFAULT uuidv7(),    
       inf_id          numeric(6)   NOT NULL,
       created_at      timestamp    NOT NULL   DEFAULT current_timestamp,
       correlation_id  uuid         NOT NULL,
@@ -38,14 +38,14 @@ CREATE TABLE IF NOT EXISTS xxi.mi_req (
       FOREIGN KEY (idsmr)
          REFERENCES "SMR"(idsmr),
 -- Check
--- РЎС‚Р°С‚СѓСЃ Р·Р°РїСЂРѕСЃР°
+-- Статус запроса
    CONSTRAINT ck_mi_req__status_cd
         CHECK ( status_cd in ( 0, 1, 2, 3, -1) )
 )
 PARTITION BY list (inf_id);
 
 -- Indexes
--- FK РЅР° req_Id
+-- FK на req_Id
 create index IF NOT EXISTS fx_mi_req__req_id
    on xxi.mi_req (req_id)
       tablespace indexes
@@ -68,25 +68,25 @@ create index IF NOT EXISTS ix_mi_req__external_uuid
 ;
 
 -- Partitions
--- Р’Р°Р»РёРґР°С†РёСЏ С„РёР· Р»РёС†
+-- Валидация физ лиц
 create table IF NOT EXISTS xxi.mi_req_0007
    partition of xxi.mi_req
       FOR VALUES IN ( 71, 72, 73, 74, 75 )
           TABLESPACE USERS
 ;
--- Р“РРЎ Р“РњРџ - РѕС‚РїСЂР°РІРєР°
+-- ГИС ГМП - отправка
 create table IF NOT EXISTS xxi.mi_req_0006
    partition of xxi.mi_req
       FOR VALUES IN ( 61 )
           TABLESPACE USERS
 ;
--- Р”РѕС…РѕРґС‹ С„РёР· Р»РёС†
+-- Доходы физ лиц
 create table IF NOT EXISTS xxi.mi_req_0008
    partition of xxi.mi_req
       FOR VALUES IN ( 8 )
           TABLESPACE USERS
 ;
--- РРќРќ С„РёР· Р»РёС†
+-- ИНН физ лиц
 create table IF NOT EXISTS xxi.mi_req_0001
    partition of xxi.mi_req
       FOR VALUES IN ( 12, 13 )
@@ -103,32 +103,32 @@ ALTER TABLE xxi.mi_req OWNER TO "XXI"
 ;
 -- Comments
 COMMENT ON TABLE xxi.mi_req IS
-   'РћР±С‰РёР№ Р·Р°РіРѕР»РѕРІРѕРє Р·Р°РїСЂРѕСЃРѕРІ. РџР°СЂС‚РёС†РёРѕРЅРёСЂСѓРµС‚СЃСЏ РїРѕ inf_id.'
+   'Общий заголовок запросов. Партиционируется по inf_id.'
 ;
 COMMENT ON COLUMN xxi.mi_req.inf_id is
-   'РРґРµРЅС‚РёС„РёРєР°С‚РѕСЂ РІРёРґР° СЃРІРµРґРµРЅРёР№. РљР»СЋС‡ РїР°СЂС‚РёС†РёСЂРѕРІР°РЅРёСЏ /mi_inf/'
+   'Идентификатор вида сведений. Ключ партицирования /mi_inf/'
 ;
 COMMENT ON COLUMN xxi.mi_req.req_id is
-   'РРґРµРЅС‚РёС„РёРєР°С‚РѕСЂ Р·Р°РїСЂРѕСЃР° РёР· xxi.mi_req_id'
+   'Идентификатор запроса из xxi.mi_req_id'
 ;
 COMMENT ON COLUMN xxi.mi_req.created_at is
-   'Р”Р°С‚Р° Рё РІСЂРµРјСЏ СЃРѕР·РґР°РЅРёСЏ Р·Р°РіРѕР»РѕРІРєР° Р·Р°РїСЂРѕСЃР°'
+   'Дата и время создания заголовка запроса'
 ;
 COMMENT ON COLUMN xxi.mi_req.correlation_id is
-   'РљРѕСЂСЂРµР»СЏС†РёРѕРЅРЅС‹Р№ РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂ Р·Р°РїСЂРѕСЃР°'
+   'Корреляционный идентификатор запроса'
 ;
 COMMENT ON COLUMN xxi.mi_req.status_cd is
-   'РЎС‚Р°С‚СѓСЃ Р·Р°РїСЂРѕСЃР°: 0=new, 1=done, 2=in_work, 3=reject, -1=error'
+   'Статус запроса: 0=new, 1=done, 2=in_work, 3=sent, -1=error'
 ;
 COMMENT ON COLUMN xxi.mi_req.idsmr is
-   'РРґРµРЅС‚РёС„РёРєР°С‚РѕСЂ IDSMR'
+   'Идентификатор IDSMR'
 ;
 COMMENT ON COLUMN xxi.mi_req.ctaxreq_id is
-   'РРґРµРЅС‚РёС„РёРєР°С‚РѕСЂ Р·Р°РїСЂРѕСЃР° РёР· Р¤РќРЎ, С‚Р°Рј РіРґРµ РЅСѓР¶РµРЅ'
+   'Идентификатор запроса из ФНС, там где нужен'
 ;
 COMMENT ON COLUMN xxi.mi_req.external_uuid is
-   'Р’РЅРµС€РЅРёР№ РіР»РѕР±Р°Р»СЊРЅС‹Р№ РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂ Р·Р°РїСЂРѕСЃР°'
+   'Внешний глобальный идентификатор запроса'
 ;
 COMMENT ON COLUMN xxi.mi_req.stage_cd is
-   'Р¤Р°Р·Р°/СЃС‚Р°РґРёСЏ Р·Р°РїСЂРѕСЃР°'
+   'Фаза/стадия запроса'
 ;

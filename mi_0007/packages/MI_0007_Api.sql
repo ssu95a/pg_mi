@@ -14,7 +14,7 @@ DECLARE
          - mi_request_Api
          - mi_person_Api
    */
-   cVersion  CONSTANT varchar(100) := '$id: {1.0.0} {13.03.2026}$';
+   cVersion  CONSTANT varchar(100) := '$id: {1.1.0} {17.06.2026}$';
 
    cPkg_Name CONSTANT varchar(20 ) := 'mi_0007_Api'; 
    cLogger   CONSTANT varchar(20 ) := 'mi.0007'; 
@@ -901,7 +901,7 @@ DECLARE
 
    l_json_person  jsonb;
    l_person_id    numeric;
-   l_item_id      numeric;
+   l_itm_id       numeric;
 
 BEGIN
 
@@ -1002,17 +1002,19 @@ EXCEPTION
             ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
             ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
       
+            p_res_Info := TS.WhenOthersError( cPkg_Name || '.' || cAction_Name, ex );
+
             CALL mi_logger.error ( 
                  cLogger, 
                  cAction_Name || ' failed',
                  cInf_Id, p_req_id, 
-                 TS.WhenOthersError( cPkg_Name || '.' || cAction_Name, ex ), 'exception', NULL::varchar, cPkg_Name 
+                 p_res_Info, 'exception', NULL::varchar, cPkg_Name 
             );
 
       END; 
 
    p_res_code := ret_Fail;
-   p_res_info := coalesce( l_message, SQLERRM );
+   p_res_info := coalesce( p_res_Info, SQLERRM );
 
    RAISE;
 
@@ -1054,37 +1056,16 @@ $procedure$
 
 
 /*
-   Установить статус request через общий пакет
-*/
-CREATE PROCEDURE set_Request_Status (
-   in p_req_id     NUMERIC,
-   in p_status_cd  NUMERIC
-)
-   LANGUAGE 
-      plpgsql
-AS
-$procedure$
-   #package
-BEGIN
-   CALL mi_request_Api.set_Status (
-      p_req_id    => p_req_id,
-      p_status_cd => p_status_cd
-   );
-END;
-$procedure$
-
-
-/*
    helper:
    проставить результат item и статус request
 */
-CREATE PROCEDURE finish_Request (
+CREATE PROCEDURE complete_Request (
    in p_itm_id         NUMERIC,
    in p_req_id         NUMERIC,
    in p_ires_code      NUMERIC,
    in p_cres_info      text DEFAULT NULL,
    in p_tres_time      timestamptz DEFAULT clock_timestamp(),
-   in p_req_status_cd  NUMERIC DEFAULT NULL
+   in p_req_status_cd  NUMERIC
 )
    LANGUAGE
       plpgsql

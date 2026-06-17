@@ -240,7 +240,7 @@ begin
             'Для клиента ' || p_cus.icusnum || ' есть успешно выполненный запрос, но не перенесен в ИНН в каталог клиентов', r.person_Id, p_cus.icusnum
          );
 
-      elsif r.istate = 1 AND r.ires_code = 1 then
+      elsif r.status_Cd = 1 AND r.ires_code = 1 then
          
          if not p_handle_Not_Found then
 
@@ -252,27 +252,27 @@ begin
 
          end if;      
             
-      elsif r.iState IN ( 2, 3 ) then
+      elsif r.status_Cd IN ( 2, 3 ) then
          -- есть запрос в обработке, но если он долго висит, то формируем новый
-         if ( round( current_timestamp - r.dtcreate, 0 ) * 24 ) < p_wait_Hour_Range then
+         if ( round( current_timestamp - r.created_At, 0 ) * 24 ) > p_wait_Hour_Range then
 
             call MI_0001_Api.log_Auto (  
                'Для клиента ' || p_cus.icusnum || ' удаляем подвисший запрос', r.person_Id, p_cus.icusnum
             );
 
-            p_ids4Remove := array_append(p_ids4Remove, r.id );
+            p_ids4Remove := array_append(p_ids4Remove, r.itm_Id );
 
          else
             l_doCreate := false;
          end if;
 
-      elsif r.iState = -1 then
+      elsif r.status_Cd = -1 then
             
             call MI_0001_Api.log_Auto (  
                'Для клиента ' || p_cus.icusnum || ' удаляем ошибочный запрос', r.person_Id, p_cus.icusnum
             );
 
-            p_ids4Remove := array_append(p_ids4Remove, r.id );
+            p_ids4Remove := array_append(p_ids4Remove, r.itm_Id );
 
       end if;
 
@@ -363,8 +363,8 @@ BEGIN
          p_message_text => 'Для клиента удалено ' || array_length( p_ids4Remove, 1) || ' старых записей', 
          p_details_text => 'mi_0001.itm_id: ' || p_ids4Remove,
          p_inf_id       => p_inf_Id, 
-         p_action_cd    => 'check_4_Prepare', 
-         p_icusnum      => p_icusnum
+         p_action_cd    => 'create_Item', 
+         p_icusnum      => null
       );
 
    end if;
