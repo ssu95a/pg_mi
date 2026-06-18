@@ -90,16 +90,17 @@ BEGIN
                                     p_parameters  => jsonb_build_object( 'req_id', p_req_id,'call_uuid', l_call_uuid ) );
    END IF;
 
-   -- Загружаем параметры запросы контейнера.
+   -- Загружаем параметры запроса
    BEGIN
+
       SELECT e.inf_id,
              e.req_id,
              e.status_cd,
              p.wsp_id,
              p.gate_alias,
-             coalesce(p.request_queue,  'xxi_pg_out') AS request_queue,
+             coalesce( p.request_queue,  'xxi_pg_out') AS request_queue,
              p.request_ttl_ms,
-             coalesce(p.response_queue, 'xxi_pg_in')  AS response_queue,
+             coalesce( p.response_queue, 'xxi_pg_in' )  AS response_queue,
              e.correlation_id,
              e.external_uuid
         INTO 
@@ -150,7 +151,7 @@ BEGIN
 
    ELSIF r_request.status_cd = 1 THEN
 
-      p_result := MI_resultCtx.ok(
+      p_result := MI_resultCtx.OK (
          p_result_code => c_res_Already_Completed,
          p_result_info => 'Request is already completed',
          p_parameters  => jsonb_build_object( 'req_id', p_req_id, 'status_cd', r_request.status_cd, 'call_uuid', l_call_uuid )
@@ -162,7 +163,7 @@ BEGIN
 
       RETURN;
 
-   ELSIF r_request.status_cd NOT IN (0, -1) THEN
+   ELSIF r_request.status_cd NOT IN ( 0,-1 ) THEN
 
       CALL MI_resultCtx.raise_fail (
          p_result_code => c_err_Bad_Status,
@@ -224,6 +225,7 @@ BEGIN
       Это transport uncertainty: X не знает, получил XXL команду или нет.
    */
    CALL cbs_Bus_X.query_Bus_Text(
+
       cSqueue_name => r_request.request_queue::varchar,
       cDqueue_name => r_request.response_queue::varchar,
 
@@ -252,25 +254,20 @@ BEGIN
          p_result_info => 'Ошибка вызова cbs_Bus_X.query_Bus_Text',
          p_cause_code  => 'MBUS_ERROR',
          p_cause_info  => l_result_info,
-         p_parameters  => jsonb_build_object(
-                            'req_id', p_req_id,
-                            'inf_id', r_request.inf_id,
-                            'wsp_id', r_request.wsp_id,
+         p_parameters  => jsonb_build_object (
+                            'req_id',    p_req_id,
+                            'inf_id',    r_request.inf_id,
                             'status_cd', r_request.status_cd,
-
                             'call_uuid', l_call_uuid,
-                            'bus_result_code', l_result_code,
-                            'bus_corr_id', l_result_corr,
-
+                            'bus_result_code', 
+                                         l_result_code,
+                            'bus_corr_id', 
+                                         l_result_corr,
                             'request_queue', r_request.request_queue,
                             'response_queue', r_request.response_queue,
                             'gate_alias', r_request.gate_alias,
                             'request_ttl_ms', r_request.request_ttl_ms,
-
-                            'request_payload', jsonb_build_object(
-                               'format', 'xml',
-                               'body', l_send_x
-                            )
+                            'request_payload', jsonb_build_object( 'format', 'xml', 'body', l_send_x )
                          )
       );
 
@@ -323,16 +320,13 @@ BEGIN
       p_object_name   => cAction_Name
    );
 
-   CALL MI_logger.exit_f(
+   CALL MI_logger.exit_f (
       p_logger_name  => cLogger,
       p_message_text => 'send_request finished',
       p_inf_id       => r_request.inf_id,
       p_req_id       => p_req_id,
-      p_details_text => jsonb_build_object(
-                           'result_code', p_result.result_code,
-                           'is_success', p_result.is_success,
-                           'call_uuid', l_call_uuid
-                        )::text
+      p_details_text => 
+              jsonb_build_object( 'result_code', p_result.result_code, 'is_success', p_result.is_success, 'call_uuid', l_call_uuid )::text
    );
 
    RETURN;
@@ -368,7 +362,7 @@ EXCEPTION
          Если это не наше структурированное MI001-исключение,
          добавим технический контекст.
       */
-      IF ex_sqlstate IS DISTINCT FROM 'MI001' THEN
+      IF ex.returned_sqlstate IS DISTINCT FROM 'MI001' THEN
 
          p_result.is_success  := false;
          p_result.result_code := coalesce(p_result.result_code, c_err_Unexpected);

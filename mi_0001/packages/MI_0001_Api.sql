@@ -186,7 +186,8 @@ create procedure check_4_Prepare (
     in p_wait_Hour_Range  int4,
    out p_create           boolean,
    out p_ids4Remove       numeric[],
-   out p_error_Count      int4
+   out p_error_Count      int4,
+   out p_result_Info      varchar 
 )
 as
 $procedure$
@@ -217,7 +218,8 @@ declare
              
 begin
 
-   p_ids4Remove := '{}';
+   p_ids4Remove := '{}'; 
+   p_result_Info:= null;
 
    for r in c_Data
    loop
@@ -226,29 +228,20 @@ begin
 
       IF r.status_Cd = 0 then
          -- уже есть подготовленный запрос по данному клиенту, но еще не принят в обработку службой отправки
-         l_doCreate := FALSE;
-
-         call MI_0001_Api.log_Auto (  
-            'Для клиента ' || p_cus.icusnum || ' уже есть подготовленный запрос по данному клиенту, но еще не принят в обработку службой отправки', r.person_Id, p_cus.icusnum
-         );
+         l_doCreate    := FALSE;
+         p_result_Info := 'Для клиента ' || p_cus.icusnum || ' уже есть подготовленный запрос по данному клиенту, но еще не принят в обработку службой отправки';   
 
       elsif r.status_Cd = 1 AND r.iRes_Code IS NULL then
          -- есть успешно выполненный запрос, но не перенесен в ИНН в каталог клиентов
-         l_doCreate := FALSE;
-
-         call MI_0001_Api.log_Auto (  
-            'Для клиента ' || p_cus.icusnum || ' есть успешно выполненный запрос, но не перенесен в ИНН в каталог клиентов', r.person_Id, p_cus.icusnum
-         );
+         l_doCreate    := FALSE;
+         p_result_Info := 'Для клиента ' || p_cus.icusnum || ' есть успешно выполненный запрос, но не перенесен в ИНН в каталог клиентов';
 
       elsif r.status_Cd = 1 AND r.ires_code = 1 then
          
          if not p_handle_Not_Found then
 
-            l_doCreate := FALSE;
-
-            call MI_0001_Api.log_Auto (  
-               'Для клиента ' || p_cus.icusnum || ' есть запрос с Сведения не найдены', r.person_Id, p_cus.icusnum
-            );
+            l_doCreate    := FALSE;
+            p_result_Info := 'Для клиента ' || p_cus.icusnum || ' есть запрос со статусом "Сведения не найдены"';
 
          end if;      
             
@@ -272,11 +265,19 @@ begin
                'Для клиента ' || p_cus.icusnum || ' удаляем ошибочный запрос', r.person_Id, p_cus.icusnum
             );
 
-            p_ids4Remove := array_append(p_ids4Remove, r.itm_Id );
+            p_ids4Remove := array_append( p_ids4Remove, r.itm_Id );
 
       end if;
 
    end loop;
+
+   if p_result_Info is not null then
+
+      call MI_0001_Api.log_Auto (  
+           p_result_Info, r.person_Id, p_cus.icusnum
+      );
+
+   end if;
 
    IF l_ncount > 0 THEN
 
@@ -290,23 +291,31 @@ begin
       -- если не корректные Имя или Фамилия
       -- пишем в лог и не обрабатываем
       IF p_cus.last_name IS NULL OR p_cus.first_name IS NULL THEN
-         call MI_0001_Api.log_Auto( 'У клиента ' || p_cus.icusnum || ' не заполнены Фамилия или Имя', null::numeric, p_cus.icusnum );
-         l_doCreate  := FALSE;
+         p_result_Info := 'У клиента ' || p_cus.icusnum || ' не заполнены Фамилия или Имя';
+         l_doCreate    := FALSE;
       END IF;
 
       IF p_cus.birth_date IS NULL THEN
-         call MI_0001_Api.log_Auto( 'У клиента ' || p_cus.icusnum || ' не заполнена Дата рождения', null::numeric, p_cus.icusnum );
-         l_doCreate  := FALSE;
+         p_result_Info :=  'У клиента ' || p_cus.icusnum || ' не заполнена Дата рождения';
+         l_doCreate    := FALSE;
       END IF;
 
       IF p_cus.doc_type_code IS NULL OR p_cus.DOC_NUM IS NULL THEN
-         call MI_0001_Api.log_Auto( 'У клиента ' || p_cus.icusnum || ' не заполнен Вид документа или Номер документа', null::numeric, p_cus.icusnum );
-         l_doCreate  := FALSE;
+         p_result_Info := 'У клиента ' || p_cus.icusnum || ' не заполнен Вид документа или Номер документа';
+         l_doCreate    := FALSE;
       END IF;
 
       IF NOT l_doCreate THEN
          p_error_Count := p_error_Count + 1;
       END IF;
+
+      if p_result_Info is not null then
+
+         call MI_0001_Api.log_Auto (  
+            p_result_Info, null::numeric, p_cus.icusnum
+         );
+
+      end if;
 
    END IF;
 
@@ -400,6 +409,8 @@ declare
    l_req_Id           numeric;  
    l_itm_id           numeric;
 
+   l_result_Info      varchar;
+
 begin
 
    -- блокирование
@@ -425,7 +436,7 @@ begin
    for r in ( SELECT * FROM xxi.v_mi_0001_ca WHERE ( current_date - DCUSOPEN ) > make_interval( hours => l_cus_Hour_Range ))
    loop
 
-      call MI_0001_Api.check_4_Prepare( r, l_handle_Not_Found, l_wait_Hour_Range, l_doCreate, l_ids4Remove, l_error_Count );
+      call MI_0001_Api.check_4_Prepare( r, l_handle_Not_Found, l_wait_Hour_Range, l_doCreate, l_ids4Remove, l_error_Count, l_result_Info );
 
       if not l_doCreate then
          continue;
@@ -436,6 +447,65 @@ begin
    end loop;
 
 end;  
+$procedure$ 
+
+
+/* Создает персональный запрос для получения ИНН для физ лица */
+create procedure create_Personal_Request (
+   in p_cus    xxi.v_mi_0001_ca,
+  out p_req_Id numeric,
+  out p_itm_id numeric,
+  out p_res_Code
+               int4,
+  out p_res_Info 
+               varchar
+)
+as
+$procedure$ 
+   #package
+declare
+
+   l_wait_Hour_Range  int4    := 72::int4; 
+   l_cus_Hour_Range   int4    := MI_prp.get_Wsp_Property( 1, 'CUS_HOUR_RANGE',  '48' )::int4; 
+   l_handle_Not_Found boolean := MI_prp.get_Wsp_Property( 1, 'HANDLE_NOT_FOUND','false' )::boolean; 
+   l_doCreate         boolean := false;  
+   l_ids4Remove       numeric[];
+
+begin
+
+   p_res_Code := ret_FAIL;
+   p_req_Id   := null;
+   p_itm_id   := null;
+
+   begin
+
+      call MI_0001_Api.check_4_Prepare( p_cus, l_handle_Not_Found, l_wait_Hour_Range, l_doCreate, l_ids4Remove, l_error_Count, p_res_Info );
+
+      if l_doCreate then
+         
+         p_req_Id := MI_0001_Api.create_Request( 12::numeric );
+         p_itm_id := MI_0001_Api.create_Item   ( 12::numeric, p_req_Id, p_cus, l_ids4Remove );
+
+         p_res_Code := ret_OK;
+         
+      end if;
+
+   exception
+      when others then
+      declare
+         ex TS.T_StackedDiagnostics;
+      begin
+         GET STACKED DIAGNOSTICS
+            ex.RETURNED_SQLSTATE    = RETURNED_SQLSTATE,  
+            ex.MESSAGE_TEXT         = MESSAGE_TEXT,
+            ex.PG_EXCEPTION_DETAIL  = PG_EXCEPTION_DETAIL,
+            ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
+            ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
+
+            p_res_Info := TS.WhenOthersError( 'MI_0001_Api.create_Personal_Request', ex );
+      end;
+   end;
+end;   
 $procedure$ 
 
 -- end_of_Package
