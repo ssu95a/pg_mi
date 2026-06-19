@@ -243,7 +243,7 @@ BEGIN
    );
 
    CALL MI_logger.variable_Value(
-      p_logger_name   => cLogger, p_variable_name => 'XXLResponse.SOUT', p_value_text => l_result_x, p_inf_id => r_request.inf_id, p_req_id => p_req_id 
+      p_logger_name=> cLogger, p_variable_name => 'query_Bus_Text.SOUT', p_value_text => l_result_x, p_inf_id => r_request.inf_id, p_req_id => p_req_id 
    );
 
    -- mbus вернул не успех
@@ -259,14 +259,12 @@ BEGIN
                             'inf_id',    r_request.inf_id,
                             'status_cd', r_request.status_cd,
                             'call_uuid', l_call_uuid,
-                            'bus_result_code', 
-                                         l_result_code,
-                            'bus_corr_id', 
-                                         l_result_corr,
-                            'request_queue', r_request.request_queue,
-                            'response_queue', r_request.response_queue,
-                            'gate_alias', r_request.gate_alias,
-                            'request_ttl_ms', r_request.request_ttl_ms,
+                            'bus_result_code', l_result_code,
+                            'bus_corr_id',     l_result_corr,
+                            'request_queue',   r_request.request_queue,
+                            'response_queue',  r_request.response_queue,
+                            'gate_alias',      r_request.gate_alias,
+                            'request_ttl_ms',  r_request.request_ttl_ms,
                             'request_payload', jsonb_build_object( 'format', 'xml', 'body', l_send_x )
                          )
       );
@@ -345,13 +343,13 @@ EXCEPTION
           ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
           ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
       
-          l_error_Text := TS.WhenOthersError('mi_mbus.send_request', ex);
+          l_error_Text := TS.WhenOthersError( cAction_Name, ex);
 
          /*
             Любая ошибка, ожидаемая или неожиданная,
             превращается в MI_resultCtx.exec_Result.
          */
-         p_result := MI_resultCtx.from_exception(
+         p_result := MI_resultCtx.from_exception (
             p_sqlstate => ex.returned_sqlstate,
             p_message  => ex.message_text,
             p_detail   => ex.pg_exception_detail,
@@ -365,8 +363,8 @@ EXCEPTION
       IF ex.returned_sqlstate IS DISTINCT FROM 'MI001' THEN
 
          p_result.is_success  := false;
-         p_result.result_code := coalesce(p_result.result_code, c_err_Unexpected);
-         p_result.result_info := coalesce(p_result.result_info, 'Unexpected error in ' || cAction_Name);
+         p_result.result_code := coalesce( p_result.result_code, c_err_Unexpected );
+         p_result.result_info := coalesce( p_result.result_info, 'Unexpected error in ' || cAction_Name );
 
          p_result.parameters :=
             coalesce( p_result.parameters, '{}'::jsonb ) || jsonb_build_object( 'error_info', l_error_Text );
