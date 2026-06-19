@@ -284,21 +284,6 @@ DECLARE
    l_note_text      text;
 
 BEGIN
-   -- mi_logger.enter_f(character varying, character varying, character varying, numeric, numeric)
-/*
-CREATE PROCEDURE enter_f (
-   in p_logger_name    varchar,
-   in p_function_name  varchar,
-   in p_message_text   varchar   default null,
-   in p_parameters     text      default null, 
-   in p_inf_id         numeric   default null,
-   in p_req_id         numeric   default null,
-   in p_person_id      numeric   default null,
-   in p_icusnum        numeric   default null,
-   in p_object_id      numeric   default null,
-   in p_object_id2     numeric   default null
-)
-*/
 
    CALL MI_logger.enter_f( cLogger, cAction_Name, 'Взятие в обработку запроса'::varchar, 'req_id=' || p_req_id, null::numeric, p_req_id );
 
@@ -418,41 +403,26 @@ BEGIN
    p_res_Code := ret_Fail;
    p_res_Info := null;
 
-   select r.inf_id, r.status_cd 
-          into l_inf_id, l_prev_status_cd 
-     from xxi.mi_req r
-    where r.req_id = p_req_id AND r.status_cd = cStatus_busy
-      for update;
-
-   /*   
    UPDATE xxi.mi_req r
       SET status_cd = cStatus_sent
     WHERE r.req_id  = p_req_id
       AND r.status_cd = cStatus_busy
-    RETURNING OLD.inf_id,
-              OLD.status_cd
-         INTO l_inf_id,
-              l_prev_status_cd;
-   */ 
+RETURNING OLD.inf_id,
+          OLD.status_cd
+          INTO l_inf_id,
+               l_prev_status_cd;
 
-   IF FOUND THEN
+   if found then 
 
-      UPDATE xxi.mi_req r
-         SET status_cd = cStatus_sent
-       WHERE r.req_id  = p_req_id AND r.status_cd = cStatus_busy;
+      p_res_Code := ret_OK;
+      p_res_Info := null;
 
-      if found then 
+      CALL MI_logger.info( cLogger, 'Request moved to sent', l_inf_id, p_req_id, NULL::varchar, cAction_Name, NULL::varchar, cPkg_Name );
 
-         p_res_Code := ret_OK;
-         p_res_Info := null;
+      RETURN;
 
-         CALL MI_logger.info( cLogger, 'Request moved to sent', l_inf_id, p_req_id, NULL::varchar, cAction_Name, NULL::varchar, cPkg_Name );
+   end if;   
 
-         RETURN;
-
-      end if;   
-
-   END IF;
 
    SELECT r.inf_id,
           r.status_cd
@@ -704,7 +674,7 @@ $procedure$
 
 
 /** */
-CREATE PROCEDURE reset(
+CREATE PROCEDURE reset (
    in  p_req_id   numeric,
    in  p_info     varchar,
    out p_res_Code int4,
