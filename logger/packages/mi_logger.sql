@@ -4,7 +4,8 @@ CREATE FUNCTION __init__()
 AS
 $init$
 DECLARE
-   cVersion CONSTANT varchar(100) := '$id: {1.0.0} {14.03.2026} $';
+
+   cVersion CONSTANT varchar(100) := '$id: {1.1.0} {28.06.2026} $';
 
    cMode_Off        CONSTANT numeric := 0;
    cMode_Raise_Only CONSTANT numeric := 1;
@@ -24,6 +25,7 @@ BEGIN
 END;
 $init$
 
+
 /* Версия */
 CREATE FUNCTION get_Version()
    RETURNS varchar
@@ -35,6 +37,7 @@ BEGIN
 END;
 $function$
 
+
 /* Режимы */
 CREATE PROCEDURE enable_Log()
 AS
@@ -45,6 +48,8 @@ BEGIN
 END;
 $procedure$
 
+
+/* */
 CREATE PROCEDURE disable_Log()
 AS
 $procedure$
@@ -54,6 +59,8 @@ BEGIN
 END;
 $procedure$
 
+
+/* */
 CREATE PROCEDURE set_Raise_Only()
 AS
 $procedure$
@@ -63,6 +70,8 @@ BEGIN
 END;
 $procedure$
 
+
+/* */
 CREATE PROCEDURE set_Default_Level(
    in p_level_cd bpchar
 )
@@ -108,8 +117,6 @@ $function$
    #private
 BEGIN
 
-   -- return true;
-
    IF g_mode = cMode_Off THEN
       RETURN false;
    END IF;
@@ -136,30 +143,22 @@ $procedure$
 DECLARE
    l_inf_id numeric;
 BEGIN
-   IF p_inf_id IS NOT NULL THEN
+
+   if p_inf_id is not null then
       p_inf_od := p_inf_id;
-   elsif p_req_id is not null
-   then
-
-      SELECT r.inf_id
-        INTO p_inf_od
-        FROM xxi.mi_req r
-       WHERE r.req_id = p_req_id;
-
+   elsif 
+      p_req_id is not null
+      then
+         select r.inf_id into p_inf_od from xxi.mi_req r where r.req_id = p_req_id;
    end if; 
 
    if p_inf_od is not null then
-
-      SELECT i.wsp_Id
-        INTO p_wsp_od
-        FROM xxi.mi_inf i
-       WHERE i.inf_Id = p_inf_Od;
-
+      select i.wsp_id into p_wsp_od from xxi.mi_inf i where i.inf_id = p_inf_od;
    end if;
 
 EXCEPTION
    WHEN NO_DATA_FOUND THEN
-      null;
+        null;
 END;
 $procedure$
 
@@ -248,7 +247,7 @@ BEGIN
       WHEN 'inf' THEN
          RAISE DEBUG '%', l_msg;
       WHEN 'wrn' THEN
-         RAISE WARNING '%', l_msg;
+         RAISE DEBUG '%', l_msg;
       WHEN 'err' THEN
          RAISE LOG '%', l_msg;
       ELSE
@@ -270,6 +269,7 @@ CREATE PROCEDURE insert_Row_AT (
    in p_message_text     varchar,
    in p_details_text     text,
    in p_req_id           numeric,
+   in p_itm_id           numeric,
    in p_person_id        numeric,
    in p_icusnum          numeric,
    in p_object_id        numeric,
@@ -289,16 +289,17 @@ BEGIN
    l_au_session_id := auditing.V_ID_Session;
 
    INSERT INTO xxi.mi_log(
-      inf_id, wsp_id, au_session_id, level_cd, logger_name, context_value, object_name, action_cd, message_text, details_text, req_id, person_id, icusnum, object_id, object_id2
+      inf_id, wsp_id, au_session_id, level_cd, logger_name, context_value, object_name, action_cd, message_text, details_text, req_id, itm_Id, person_id, icusnum, object_id, object_id2
    )
    VALUES(
       p_inf_id, p_wsp_id, l_au_session_id, coalesce( p_level_cd, g_default_level), 
-      left(p_logger_name, 50), left(p_context_value, 100), left(p_object_name, 100), left(p_action_cd, 50), left(p_message_text, 2000),p_details_text,
-      p_req_id, p_person_id, p_icusnum, p_object_id, p_object_id2
+      left(p_logger_name, 50), left(p_context_value, 100), left(p_object_name, 100), left(p_action_cd, 50), left(p_message_text, 2000), p_details_text,
+      p_req_id, p_itm_Id, p_person_id, p_icusnum, p_object_id, p_object_id2
    );
 
 END;
 $procedure$
+
 
 /* */
 CREATE PROCEDURE try_Insert_Row(
@@ -312,6 +313,7 @@ CREATE PROCEDURE try_Insert_Row(
    in p_message_text     varchar,
    in p_details_text     text,
    in p_req_id           numeric,
+   in p_itm_id           numeric,
    in p_person_id        numeric,
    in p_icusnum          numeric,
    in p_object_id        numeric,
@@ -323,7 +325,7 @@ $procedure$
    #private
 BEGIN
 
-   CALL mi_logger.insert_Row_AT(
+   CALL mi_logger.insert_Row_AT (
       p_inf_id,
       p_wsp_id,
       p_level_cd,
@@ -334,6 +336,7 @@ BEGIN
       p_message_text,
       p_details_text,
       p_req_id,
+      p_itm_id,
       p_person_id,
       p_icusnum,
       p_object_id,
@@ -347,20 +350,28 @@ END;
 $procedure$
 
 
-
 /* public main procedure */
 CREATE PROCEDURE log(
    in p_logger_name    varchar,
+
    in p_message_text   varchar,
-   in p_inf_id         numeric   default null,
-   in p_req_id         numeric   default null,
+
+   in p_inf_Id         numeric   default null,
+   in p_req_Id         numeric   default null,
+   in p_itm_Id         numeric   default null,
+   
    in p_level_cd       bpchar    default 'dbg',
+   
    in p_details_text   text      default null,
+   
    in p_action_cd      varchar   default null,
    in p_context_value  varchar   default null,
+   
    in p_object_name    varchar   default null,
+   
    in p_person_id      numeric   default null,
    in p_icusnum        numeric   default null,
+   
    in p_object_id      numeric   default null,
    in p_object_id2     numeric   default null
 )
@@ -379,7 +390,7 @@ BEGIN
    call mi_logger.resolve_Id( p_inf_id, p_req_id, l_inf_id, l_wsp_id );
 
    CALL mi_logger.emit_Raise (
-      p_logger_name, p_level_cd, p_action_cd, p_message_text, p_context_value, p_req_id, p_person_id, p_object_id, p_object_id2, p_details_text 
+      p_logger_name, p_level_cd, p_action_cd, p_message_text, p_context_value, p_req_id, itm_Id, p_person_id, p_object_id, p_object_id2, p_details_text 
    );
 
    -- Если маршрут не определился - в таблицу не пишем, но RAISE уже был
@@ -389,7 +400,7 @@ BEGIN
 
    if g_mode = cMode_All then
       CALL mi_logger.try_Insert_Row (
-         l_inf_id, l_wsp_id, p_level_cd, p_logger_name, p_context_value, p_object_name, p_action_cd, p_message_text, p_details_text, p_req_id, p_person_id, p_icusnum, p_object_id, p_object_id2
+         l_inf_id, l_wsp_id, p_level_cd, p_logger_name, p_context_value, p_object_name, p_action_cd, p_message_text, p_details_text, p_req_id, p_itm_Id, p_person_id, p_icusnum, p_object_id, p_object_id2
       );
    end if;   
 
@@ -585,16 +596,16 @@ $procedure$
 
 /* вход в ф-цию */
 CREATE PROCEDURE enter_f (
-   in p_logger_name    varchar,
-   in p_function_name  varchar,
-   in p_message_text   varchar   default null,
-   in p_parameters     text      default null, 
-   in p_inf_id         numeric   default null,
-   in p_req_id         numeric   default null,
-   in p_person_id      numeric   default null,
-   in p_icusnum        numeric   default null,
-   in p_object_id      numeric   default null,
-   in p_object_id2     numeric   default null
+   in p_logger_name   varchar,
+   in p_function_name varchar,
+   in p_message_text  varchar   default null,
+   in p_parameters    text      default null, 
+   in p_inf_id        numeric   default null,
+   in p_req_id        numeric   default null,
+   in p_person_id     numeric   default null,
+   in p_icusnum       numeric   default null,
+   in p_object_id     numeric   default null,
+   in p_object_id2    numeric   default null
 )
 AS
 $procedure$
@@ -616,6 +627,7 @@ BEGIN
 END;
 $procedure$
 
+/* выход из ф-ции */
 CREATE PROCEDURE exit_f(
    in p_logger_name    varchar,
    in p_message_text   varchar default null,
@@ -646,6 +658,7 @@ BEGIN
 END;
 $procedure$
 
+/* метка в коде */
 CREATE PROCEDURE label(
    in p_logger_name    varchar,
    in p_message_text   varchar,
@@ -892,7 +905,7 @@ EXCEPTION
 END;
 $procedure$
 
-/** */
+/* */
 CREATE PROCEDURE clear_Log(
    in p_inf_id numeric
 )

@@ -33,6 +33,7 @@ CREATE UNLOGGED TABLE IF NOT EXISTS xxi.mi_log
         details_text  text,
 
         req_id        numeric(12),
+        itm_id        numeric(12),
 
         person_id     numeric(12),
         icusnum       numeric(12),
@@ -76,7 +77,7 @@ CREATE INDEX IF NOT EXISTS ix_mi_log__log_id ON xxi.mi_log (log_id) TABLESPACE I
 ;
 CREATE INDEX IF NOT EXISTS ix_mi_log__logged_at ON xxi.mi_log (logged_at) TABLESPACE INDEXES
 ;
-CREATE INDEX IF NOT EXISTS ix_mi_log__req_id ON xxi.mi_log (req_id) TABLESPACE INDEXES
+CREATE INDEX IF NOT EXISTS ix_mi_log__req_itm_id ON xxi.mi_log(req_id,itm_id) TABLESPACE INDEXES
 ;
 CREATE INDEX IF NOT EXISTS ix_mi_log__person_id ON xxi.mi_log (person_id) TABLESPACE INDEXES
 ;
@@ -89,23 +90,23 @@ CREATE INDEX IF NOT EXISTS ix_mi_log__parent_id ON xxi.mi_log (parent_id) TABLES
 
 -- Comments
 COMMENT ON TABLE xxi.mi_log IS
-    'Техническая debug-трасса MI для разработчиков. Не является аудитом. Может очищаться и отключаться.'
+   'Техническая debug-трасса MI для разработчиков. Не является аудитом. Может очищаться и отключаться.'
 ;
 
 COMMENT ON COLUMN xxi.mi_log.log_id IS
-    'Идентификатор записи debug-лога'
+   'Идентификатор записи debug-лога'
 ;
 COMMENT ON COLUMN xxi.mi_log.inf_id IS
-    'Идентификатор вида сведений'
+   'Идентификатор вида сведений'
 ;
 COMMENT ON COLUMN xxi.mi_log.wsp_id IS
-    'Идентификатор АРМ/контейнера'
+   'Идентификатор АРМ/контейнера'
 ;
 COMMENT ON COLUMN xxi.mi_log.logged_at IS
-    'Дата и время события'
+   'Дата и время события'
 ;
 COMMENT ON COLUMN xxi.mi_log.au_session_id IS
-    'Идентификатор сессии системного аудита'
+   'Идентификатор сессии системного аудита'
 ;
 COMMENT ON COLUMN xxi.mi_log.level_cd IS
     'Уровень логирования: trc, dbg, inf, wrn, err'
@@ -130,6 +131,9 @@ COMMENT ON COLUMN xxi.mi_log.details_text IS
 ;
 COMMENT ON COLUMN xxi.mi_log.req_id IS
     'Идентификатор запроса'
+;
+COMMENT ON COLUMN xxi.mi_log.itm_id IS
+    'Идентификатор элемента запроса'
 ;
 COMMENT ON COLUMN xxi.mi_log.person_id IS
     'Идентификатор физлица'

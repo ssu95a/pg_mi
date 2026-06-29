@@ -9,21 +9,21 @@ DECLARE
    /*
       Общая логика request header для mi_req
    */
-   cVersion         CONSTANT varchar(100) := '$id: {1.0.0} {13.03.2026}$';
-   cLogger          CONSTANT varchar(20 ) := 'mi.req'; 
-   cPkg_Name        CONSTANT varchar(20 ) := 'MI_Request_Api'; 
+   cVersion       CONSTANT varchar(100) := '$id: {1.0.0} {13.03.2026}$';
+   cLogger        CONSTANT varchar(20 ) := 'mi.req'; 
+   cPkg_Name      CONSTANT varchar(20 ) := 'MI_Request_Api'; 
 
-   ret_OK           Constant int4    := 0;
-   ret_Fail         Constant int4    := -1;
+   ret_OK         Constant int4    := 0;
+   ret_Fail       Constant int4    := -1;
 
-   cStatus_New      CONSTANT numeric := 0;
-   cStatus_Busy     CONSTANT numeric := 2;
-   cStatus_Sent     CONSTANT numeric := 3;
-   cStatus_Done     CONSTANT numeric := 1;
-   cStatus_Error    CONSTANT numeric := -1;
+   cStatus_New     CONSTANT numeric := 0;
+   cStatus_Busy   CONSTANT numeric := 2;
+   cStatus_Sent   CONSTANT numeric := 3;
+   cStatus_Done   CONSTANT numeric := 1;
+   cStatus_Error  CONSTANT numeric := -1;
 
-   cInitiator_Slf   CONSTANT numeric := -1;
-   cInitiator_Ext   CONSTANT numeric := 1;
+   cInitiator_Slf CONSTANT numeric := -1;
+   cInitiator_Ext CONSTANT numeric := 1;
 
 BEGIN
    raise debug 'Package "%" - % - initialized', cPkg_Name, cVersion;
@@ -63,9 +63,7 @@ END;
 $function$
 
 
-/*
-   Следующий req_id, sequence - s_mi_req.
-*/
+/* Следующий req_id, sequence - s_mi_req. */
 CREATE FUNCTION next_Req_Id( )
    RETURNS 
       numeric
@@ -591,7 +589,7 @@ CREATE PROCEDURE to_Error(
 AS
 $procedure$
 DECLARE
-   cAction_Name     constant varchar(20) := 'to_error';
+   cAction_Name     constant varchar := cPkg_Name || '.to_error';
 
    l_inf_id         numeric;
    l_prev_status_cd numeric;
@@ -682,6 +680,7 @@ CREATE PROCEDURE reset (
 )
 AS
 $procedure$
+   #package
 DECLARE
    cAction_Name      constant varchar(20) := 'reset';
 
@@ -805,8 +804,6 @@ CREATE FUNCTION lock_Request (
 )
    RETURNS 
       record --mi_req
-   LANGUAGE
-      plpgsql
 AS
 $function$
    #package
@@ -830,7 +827,6 @@ $function$
 CREATE PROCEDURE delete_Request(
    in p_req_id numeric
 )
-   LANGUAGE plpgsql
 AS
 $procedure$
    #package
@@ -854,12 +850,6 @@ DECLARE
    cAction_Name   constant varchar(20) := 'delete_by_marker';
 
    l_deleted_count integer;
-
-   l_sqlstate text;
-   l_message  text;
-   l_detail   text;
-   l_hint     text;
-   l_context  text;
 BEGIN
    p_res_Info := null;
 
@@ -869,7 +859,6 @@ BEGIN
      AND m.idrow    = r.req_id;
 
    GET DIAGNOSTICS l_deleted_count = ROW_COUNT;
-
 
    IF l_deleted_count = 0 THEN
       p_res_Info := 'По marker_id = ' || p_marker_id || ' запросы для удаления не найдены.';
@@ -905,5 +894,199 @@ EXCEPTION
 
 END;
 $procedure$
+
+
+/* Установка запроса в ошибочный стутс из-за ответа СМЭВ */
+CREATE PROCEDURE apply_Request_Failure (
+   
+   in p_external_uuid uuid,
+   in p_message_uuid  uuid,
+
+   in p_reason_code   varchar,
+
+   in p_error_code    varchar,
+   in p_error_info    varchar,
+   in p_error_details text,
+
+   in p_occurred_at   timestamptz,
+
+   out p_res_code     int4,
+   out p_res_info     varchar
+)
+AS
+$procedure$
+   #package
+declare
+
+   cAction_Name  constant varchar := cPkg_Name || '.apply_Request_Failure';
+
+   l_req_Id    numeric;
+   l_inf_Id    numeric;
+
+   l_status_cd numeric;
+
+   l_reason_code varchar;
+
+   l_current_message_uuid uuid;
+   
+   l_expected_stage_cd numeric;
+   l_current_stage_cd  numeric;
+
+begin
+
+   p_res_code := -1;
+   p_res_Info := 'Unhandled error in ' || cAction_Name;
+
+   call MI_logger.enter_f( cLogger, cAction_Name, 'Отрицательный ответ от MI/SMEV на запрос'::varchar, 
+                          'p_external_uuid=' || p_external_uuid || ', p_reason= ' || p_reason_code || ', p_error_code = ' || p_error_code  );
+
+   /*
+    * Нормализуем значение transport enum:
+    * REQUEST_REJECTED / REQUEST_FAILED.
+    */
+
+   l_reason_code := upper( trim(p_reason_code) );
+
+   -- Проверка обязательных параметров.
+   IF p_external_uuid IS NULL THEN
+      p_res_info := 'p_external_uuid is null';
+      RETURN;
+   END IF;
+
+   IF p_message_uuid IS NULL THEN
+      p_res_info := 'p_message_uuid is null';
+      RETURN;
+   END IF;
+
+   IF l_reason_code IS NULL THEN
+      p_res_info := 'p_reason_code is null';
+      RETURN;
+   END IF;
+
+   l_expected_stage_cd :=
+      CASE l_reason_code
+         WHEN 'REQUEST_REJECTED' THEN 1::numeric
+         WHEN 'REQUEST_FAILED'   THEN 2::numeric
+         ELSE NULL
+      END;
+
+   /* Ищем запрос независимо от текущего статуса
+      и блокируем его до завершения процедуры. */
+   BEGIN
+
+      SELECT r.req_id,
+             r.inf_id,
+             r.status_cd,
+             r.stage_cd,
+             r.message_uuid
+        INTO STRICT
+             l_req_id,
+             l_inf_id,
+             l_status_cd,
+             l_current_stage_cd,
+             l_current_message_uuid
+        FROM xxi.mi_req r
+       WHERE r.external_uuid = p_external_uuid
+         FOR UPDATE;
+
+   EXCEPTION
+      WHEN no_data_found THEN
+
+         p_res_code := ret_Fail;
+         p_res_info := 'Не найден запрос с external_uuid = ' || p_external_uuid;
+
+         RETURN;
+   END;
+
+   call MI_logger.variable_Value( cLogger, 'req_id', l_req_Id, p_inf_id => l_inf_id, p_req_id => l_req_Id );
+
+   -- Запрос уже установлен в ошибочный статус. 
+   IF l_status_cd = -1 THEN
+
+      -- Тот же message_uuid должен содержать точно такие же данные.
+      IF l_current_message_uuid = p_message_uuid THEN
+
+         IF l_current_stage_cd IS NOT DISTINCT FROM l_expected_stage_cd
+         THEN
+            p_res_code := ret_Ok;
+            p_res_info := 'Отрицательный ответ уже применён ранее';
+
+            RETURN;
+         END IF;
+
+         p_res_code := ret_Fail;
+         p_res_info := 'Конфликт повторного сообщения: message_uuid=' || p_message_uuid || ' уже применён с другими данными';
+
+         RETURN;
+
+      END IF;
+
+      -- Другой ответ пришёл для уже завершённого запроса.
+      p_res_code := ret_Fail;
+      p_res_info := 'Запрос уже установлен в ошибочный статус другим сообщением: current_message_uuid='
+                    || coalesce( l_current_message_uuid::varchar, 'null' ) || ', incoming_message_uuid='|| p_message_uuid;
+
+      RETURN;
+
+   END IF;
+
+   -- Отрицательный ответ применим только к запросу, который был успешно отправлен.
+   IF l_status_cd <> 3 THEN
+
+      p_res_code := ret_Fail;
+      p_res_info := 'Запрос не находится в необходимом статусе 3: ' || 'status_cd=' || coalesce( l_status_cd::varchar, 'null' );
+
+      RETURN;
+
+   END IF;
+
+   UPDATE xxi.mi_req
+      SET status_cd    = -1,
+          stage_cd     = l_expected_stage_cd,
+          result_code  = p_error_code,
+          result_info  = p_error_info,
+          note         = p_error_details,
+          result_time  = p_occurred_at,
+          message_uuid = p_message_uuid
+    WHERE 
+          req_id = l_req_id;
+
+   IF NOT FOUND THEN
+      p_res_code := ret_Fail;
+      p_res_info := 'Не удалось обновить запрос: req_id=' || l_req_id || '. Данные не нашлись';
+
+      RETURN;
+
+   END IF;
+
+   p_res_code := ret_Ok;
+   p_res_info := 'Отрицательный ответ успешно применён: req_id=' || l_req_id;
+
+EXCEPTION
+   WHEN others THEN
+      DECLARE
+         ex TS.T_StackedDiagnostics;
+      BEGIN
+        GET STACKED DIAGNOSTICS
+            ex.RETURNED_SQLSTATE    = RETURNED_SQLSTATE,
+            ex.MESSAGE_TEXT         = MESSAGE_TEXT,
+            ex.PG_EXCEPTION_DETAIL  = PG_EXCEPTION_DETAIL,
+            ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
+            ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;
+      
+            CALL MI_logger.error ( 
+                 cLogger, 
+                 cAction_Name || ' failed',
+                 l_inf_id, l_req_Id, 
+                 TS.WhenOthersError( cAction_Name, ex ), 'exception', NULL::varchar, NULL::varchar
+            );
+      END; 
+
+      p_res_code := ret_Fail;
+      p_res_info := SQLERRM;
+
+END;
+$procedure$
+
 /* end_Of_Package */
 ;

@@ -8,22 +8,26 @@ CREATE TABLE IF NOT EXISTS xxi.mi_req (
 -- +---------------------------------------------------------------------------
 -- |   column     |    type     |    null   | default 
 -- +---------------------------------------------------------------------------
-      req_id          numeric(12)  NOT NULL,
-      external_uuid   uuid         NOT NULL   DEFAULT uuidv7(),    
-      inf_id          numeric(6)   NOT NULL,
-      created_at      timestamp    NOT NULL   DEFAULT current_timestamp,
-      correlation_id  uuid         NOT NULL,
-      status_cd       numeric(3)   NOT NULL   DEFAULT 0,
-      stage_cd        numeric(3)       NULL,
-      idsmr           varchar(3)   NOT NULL   DEFAULT sys_context('B21'::character varying, 'IDSmr'::character varying),
-      note            text             NULL,  
-      ctaxreq_id      varchar(50),
-      itype           numeric(3),
-      i1              numeric(3),
-      i2              numeric(3),
-      i3              numeric(3),
+      req_id         numeric(12)  NOT NULL,
+      external_uuid  uuid         NOT NULL  DEFAULT uuidv7(),
+      inf_id         numeric(6)   NOT NULL,
+      created_at     timestamp    NOT NULL  DEFAULT current_timestamp,
+      correlation_id uuid         NOT NULL,
+      status_cd      numeric(3)   NOT NULL  DEFAULT 0,
+      stage_cd       numeric(3)       NULL,
+      idsmr          varchar(3)   NOT NULL  DEFAULT sys_context('B21'::character varying, 'IDSmr'::character varying),
+      note           text             NULL, 
+      ctaxreq_id     varchar(50)      NULL,
+      itype          numeric(3)       NULL,
+      i1             numeric(3)       NULL, 
+      i2             numeric(3)       NULL,
+      i3             numeric(3)       NULL,
+      result_code    varchar(100)     NULL,
+      result_info    varchar(300)     NULL,
+      result_time    timestamp        NULL,
+      message_uuid   uuid             NULL
 
--- Constraints 
+-- Constraints:
 -- FK
    CONSTRAINT fk_mi_req__req_id
       FOREIGN KEY (req_id)
@@ -40,9 +44,10 @@ CREATE TABLE IF NOT EXISTS xxi.mi_req (
 -- Check
 -- Статус запроса
    CONSTRAINT ck_mi_req__status_cd
-        CHECK ( status_cd in ( 0, 1, 2, 3, -1) )
+      CHECK ( status_cd in ( 0, 1, 2, 3, -1) )
 )
-PARTITION BY list (inf_id);
+PARTITION 
+       BY LIST (inf_id);
 
 -- Indexes
 -- FK на req_Id
@@ -92,7 +97,7 @@ create table IF NOT EXISTS xxi.mi_req_0001
       FOR VALUES IN ( 12, 13 )
           TABLESPACE USERS
 ;
--- default
+   default
 create table IF NOT EXISTS xxi.mi_req_default
    partition of xxi.mi_req
       default
@@ -131,4 +136,16 @@ COMMENT ON COLUMN xxi.mi_req.external_uuid is
 ;
 COMMENT ON COLUMN xxi.mi_req.stage_cd is
    'Фаза/стадия запроса'
+;
+COMMENT ON COLUMN xxi.mi_req.result_code is
+   'Код результата операции'
+;
+COMMENT ON COLUMN xxi.mi_req.result_info is
+   'Инорфмация о результате'
+;
+COMMENT ON COLUMN xxi.mi_req.result_time is
+   'Дата время получения информации'
+;
+COMMENT ON COLUMN xxi.mi_req.message_uuid is
+   'ИД сообщения MI на который сформирован запрос или получен ответ'
 ;
