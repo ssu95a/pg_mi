@@ -509,97 +509,223 @@ end;
 $procedure$ 
 
 
-/* Сохранить результат обработки Item */
-create procedure apply_Item_Result (
-    in p_req_Id        numeric,
-    in p_external_uuid uuid,
-    in p_inn           varchar,
-    in p_ires_code     numeric,
-    in p_tres_time     timestamp,
-    in p_cres_info     text,
-   out p_res_code      int4,
-   out p_res_info      varchar
+/* Сохранить результат обработки одного item */
+CREATE PROCEDURE apply_Item_Result (
+   in p_request_uuid        uuid,
+   in p_message_uuid        uuid,
+   in p_item_external_uuid  uuid,
+
+   in p_inn                 varchar,
+   in p_ires_code           numeric,
+   in p_tres_time           timestamp,
+   in p_cres_info           text,
+
+   out p_res_code           int4,
+   out p_res_info           varchar
 )
-as
-$procedure$ 
+AS
+$procedure$
    #package
-declare
+DECLARE
 
-   c_item cursor
-   for
-      select itm_Id, req_Id
-        from mi_0001 m
-       where m.external_uuid = p_external_uuid
-         for update;
+   cAction_Name constant varchar := cPkg_Name || '.apply_Item_Result';
 
-   r_item record;
+   /*
+    * Контракт с Java:
+    *
+    *  0 = APPLIED - ret_OK
+    *  1 = ALREADY_APPLIED
+    * -1 = FAILED - ret_Failed
+    * -2 = CONFLICT
+    *
+    * Неожиданные SQL-ошибки не перехватываются.
+    * Они должны выйти наружу и привести к retry сообщения.
+    */
 
-begin
+   cAlreadyApplied constant int4 :=  1;
+   cConflict       constant int4 := -2;
 
-   p_res_code := -1;
-   p_res_info := 'Error on apply_Item_Result';
+   l_itm_id                numeric;
+   l_req_id                numeric;
 
-   -- Проверка обязательных параметров.
-   IF p_external_uuid IS NULL THEN
-      p_res_info := 'p_external_uuid is null';
-      return;
-   end if;
+   l_current_message_uuid  uuid;
+   l_current_inn           varchar;
+   l_current_ires_code     numeric;
+   l_current_tres_time     timestamp;
+   l_current_cres_info     text;
 
-   IF p_external_uuid IS NULL THEN
-      p_res_info := 'p_req_Id is null';
-      return;
+   l_updated_count         int4;
+
+BEGIN
+
+   p_res_code := ret_FAIL;
+   p_res_info := 'Unhandled error in ' || cAction_Name;
+
+   /*
+    * Проверка обязательных идентификаторов.
+    */
+   IF p_request_uuid IS NULL THEN
+      p_res_info := 'p_request_uuid is null';
+      RETURN;
    END IF;
-  
-   open c_item;
-      fetch c_item into r_item;
-         close c_item;
 
-   if r_item.itm_Id is null then
-      p_res_info := 'Не найден элемент запроса с external_uuid в sm_0001';
-      return;
-   end if;
+   IF p_message_uuid IS NULL THEN
+      p_res_info := 'p_message_uuid is null';
+      RETURN;
+   END IF;
 
-   if r_item.req_Id <> p_req_Id then
-      p_res_info := 'Id запроса в БД ' || r_item.req_Id || ' не совпадет с переданным ' || p_req_id;
-      return;
-   end if;
+   IF p_item_external_uuid IS NULL THEN
+      p_res_info := 'p_item_external_uuid is null';
+      RETURN;
+   END IF;
 
-   update mi_0001
-      set inn = p_inn,
-          ires_code = p_ires_code,
-          cres_info = p_cres_info,
-          tres_time = coalesce( p_tres_time, current_timestamp )
-    where
-          itm_Id = r_item.req_Id;
+   IF p_ires_code IS NULL THEN
+      p_res_info := 'p_ires_code is null';
+      RETURN;
+   END IF;
 
-   p_res_code := 0;
-   p_res_info := 'item updated!';
+   /*
+    * Время результата должно приходить из сообщения.
+    * Иначе можно запутаться при retry
+    */
+   IF p_tres_time IS NULL THEN
+      p_res_info := 'p_tres_time is null';
+      RETURN;
+   END IF;
 
-exception
-   WHEN others THEN
-      DECLARE
-         ex TS.T_StackedDiagnostics;
-      BEGIN
-        GET STACKED DIAGNOSTICS
-            ex.RETURNED_SQLSTATE    = RETURNED_SQLSTATE,
-            ex.MESSAGE_TEXT         = MESSAGE_TEXT,
-            ex.PG_EXCEPTION_DETAIL  = PG_EXCEPTION_DETAIL,
-            ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
-            ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;
-      
-            CALL MI_logger.error ( 
-                 cLogger, 
-                 cAction_Name || ' failed',
-                 null::numeric, l_req_Id, 
-                 TS.WhenOthersError( cAction_Name, ex ), 'exception', NULL::varchar, NULL::varchar
-            );
-      END; 
+   /*
+    * Находим item внутри конкретного request и сразу блокируем его до завершения транзакции.
+    */
+   BEGIN
+      SELECT i.itm_id,
+             i.req_id,
+             i.message_uuid,
+             i.inn,
+             i.ires_code,
+             i.tres_time,
+             i.cres_info
+        INTO STRICT
+             l_itm_id,
+             l_req_id,
+             l_current_message_uuid,
+             l_current_inn,
+             l_current_ires_code,
+             l_current_tres_time,
+             l_current_cres_info
+        FROM xxi.mi_0001 i
+        JOIN xxi.mi_req r
+          ON r.req_id = i.req_id
+       WHERE r.external_uuid = p_request_uuid
+         AND i.external_uuid = p_item_external_uuid
+         FOR UPDATE OF i;
 
-      p_res_code := ret_Fail;
-      p_res_info := SQLERRM;
+   EXCEPTION
+      WHEN no_data_found THEN
+         p_res_code := ret_Fail;
+         p_res_info := 'Item not found: request_external_uuid=' || p_request_uuid || ', item_external_uuid=' || p_item_external_uuid;
+
+         RETURN;
+
+      WHEN too_many_rows THEN
+         /*
+          * При UNIQUE на mi_0001.external_uuid этого быть
+          * не должно. Считаем нарушением данных.
+          */
+         RAISE EXCEPTION
+            'More than one item found: request_external_uuid=%, item_external_uuid=%', p_request_uuid, p_item_external_uuid;
+   END;
+
+   /*
+    * Item уже был финализирован.
+    */
+   IF l_current_message_uuid IS NOT NULL THEN
+
+      /*
+       * Повторная доставка того же сообщения.
+       */
+      IF l_current_message_uuid = p_message_uuid THEN
+
+         /*
+          * То же сообщение и ровно те же данные:
+          * успешный идемпотентный no-op.
+          */
+         IF l_current_inn IS NOT DISTINCT FROM p_inn
+            AND l_current_ires_code IS NOT DISTINCT FROM p_ires_code
+            AND l_current_tres_time IS NOT DISTINCT FROM p_tres_time
+            AND l_current_cres_info IS NOT DISTINCT FROM p_cres_info
+         THEN
+            p_res_code := cAlreadyApplied;
+            p_res_info :=
+                 'Item already applied: itm_id='
+                 || l_itm_id
+                 || ', message_uuid='
+                 || p_message_uuid;
+
+            RETURN;
+         END IF;
+
+         /*
+          * Тот же UUID сообщения, но данные отличаются.
+          * Это нарушение контракта сообщения.
+          */
+         p_res_code := cConflict;
+         p_res_info :=
+              'Item replay conflict: message_uuid='
+              || p_message_uuid
+              || ', itm_id='
+              || l_itm_id
+              || ', stored result differs from incoming result';
+
+         RETURN;
+      END IF;
+
+      /*
+       * Item уже обработан другим сообщением.
+       * Политика first-wins.
+       */
+      p_res_code := cConflict;
+      p_res_info :=
+           'Item already finalized by another message: itm_id='
+           || l_itm_id
+           || ', stored_message_uuid='
+           || l_current_message_uuid
+           || ', incoming_message_uuid='
+           || p_message_uuid;
+
+      RETURN;
+   END IF;
+
+   /*
+    * Первое применение результата.
+    */
+   UPDATE xxi.mi_0001
+      SET inn                   = p_inn,
+          ires_code             = p_ires_code,
+          tres_time             = p_tres_time,
+          cres_info             = p_cres_info,
+          message_uuid = p_message_uuid
+    WHERE itm_id = l_itm_id
+      AND message_uuid IS NULL;
+
+   GET DIAGNOSTICS l_updated_count = ROW_COUNT;
+
+   /*
+    * Строка заблокирована FOR UPDATE, поэтому отсутствие
+    * обновления означает неожиданную проблему состояния.
+    * Не превращаем её в бизнес-ответ, пусть XXL сделает retry.
+    */
+   IF l_updated_count <> 1 THEN
+      RAISE EXCEPTION
+         'Unexpected item update count: itm_id=%, updated_count=%',
+         l_itm_id,
+         l_updated_count;
+   END IF;
+
+   p_res_code := ret_Ok;
+   p_res_info := 'Item applied: itm_id=' || l_itm_id || ', req_id=' || l_req_id || ', message_uuid=' || p_message_uuid;
 
 END;
-$procedure$ 
+$procedure$;
 
 -- end_of_Package
 ;

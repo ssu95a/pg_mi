@@ -17,12 +17,15 @@ CREATE TABLE IF NOT EXISTS xxi.mi_0001 (
       ires_code     numeric(3)        NULL,  
       tres_time     timestamp         NULL,  
       cres_info     text              NULL,
+      message_uuid  uuid,
 
 -- constraints
 -- PK
    CONSTRAINT pk_mi_0001 PRIMARY KEY (itm_id) using index tablespace indexes,
+
 -- UK
    CONSTRAINT uk_0001_external_uuid UNIQUE (external_uuid) using index tablespace indexes,
+
 -- FK      
    CONSTRAINT fk_mi_0001__req_id FOREIGN KEY (req_id   ) REFERENCES xxi.mi_req_id (req_id   ) ON DELETE CASCADE,
    CONSTRAINT fk_mi_0001__person FOREIGN KEY (person_id) REFERENCES xxi.mi_person (person_id),
@@ -30,6 +33,7 @@ CREATE TABLE IF NOT EXISTS xxi.mi_0001 (
 )
 TABLESPACE users
 ;
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS fx_mi_0001__req_id ON xxi.mi_0001 USING btree ( req_id ) TABLESPACE indexes
 ;
@@ -37,9 +41,13 @@ CREATE INDEX IF NOT EXISTS fx_mi_0001__person_id ON xxi.mi_0001 USING btree ( pe
 ;
 CREATE INDEX IF NOT EXISTS fx_mi_0001__icusnum ON xxi.mi_0001 USING btree ( icusnum ) TABLESPACE indexes
 ;
+CREATE INDEX IF NOT EXISTS ix_mi_0001__message_uuid ON xxi.mi_0001(message_uuid) WHERE message_uuid IS NOT NULL TABLESPACE indexes
+;
+
 -- Grants
 ALTER TABLE xxi.mi_0001 owner to "XXI"
 ;
+
 -- Comments
 COMMENT ON TABLE xxi.mi_0001 is 
    'СМЭВ-3. Запрос cведений об ИНН физ лица $id: {4.0.0} {26.05.2026} Sulimoff$'
@@ -70,4 +78,7 @@ COMMENT ON COLUMN xxi.mi_0001.tres_time is
 ;
 COMMENT ON COLUMN xxi.mi_0001.inn is 
    'ИНН полученный из СМЭВ'
+;
+COMMENT ON COLUMN xxi.mi_0001.message_uuid is 
+   'ID сообщения из MI, где был обработан элемент'
 ;

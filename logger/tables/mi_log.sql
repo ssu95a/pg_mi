@@ -60,9 +60,9 @@ CREATE UNLOGGED TABLE IF NOT EXISTS xxi.mi_log_7
             TABLESPACE USERS
 ;
 CREATE UNLOGGED TABLE IF NOT EXISTS xxi.mi_log_23
-    PARTITION OF xxi.mi_log
-        FOR VALUES IN (23)
-            TABLESPACE USERS
+   PARTITION OF xxi.mi_log
+      FOR VALUES IN (23)
+         TABLESPACE USERS
 ;
 -- Партиция по умолчанию
 CREATE UNLOGGED TABLE IF NOT EXISTS xxi.mi_log_0

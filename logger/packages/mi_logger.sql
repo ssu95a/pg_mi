@@ -204,19 +204,19 @@ $function$
 
 
 /* Вывод в RAISE */
-CREATE PROCEDURE emit_Raise (
+CREATE PROCEDURE emit_Raise(
    in p_logger_name   varchar,
    in p_level_cd      bpchar,
    in p_action_cd     varchar,
    in p_message_text  varchar,
    in p_context_value varchar,
    in p_req_id        numeric,
+   in p_itm_id        numeric,
    in p_person_id     numeric,
    in p_object_id     numeric,
    in p_object_id2    numeric,
    in p_details_text  text
-)
-AS
+)AS
 $procedure$
    #package
    #private
@@ -285,16 +285,16 @@ DECLARE
    l_au_session_id numeric;
 BEGIN 
    AUTONOMOUS
-   
+raise debug 'insert_Row_AT';   
    l_au_session_id := auditing.V_ID_Session;
 
    INSERT INTO xxi.mi_log(
-      inf_id, wsp_id, au_session_id, level_cd, logger_name, context_value, object_name, action_cd, message_text, details_text, req_id, itm_Id, person_id, icusnum, object_id, object_id2
+      inf_id, wsp_id, au_session_id, level_cd, logger_name, context_value, object_name, action_cd, message_text, details_text, req_id, person_id, icusnum, object_id, object_id2, itm_Id
    )
    VALUES(
       p_inf_id, p_wsp_id, l_au_session_id, coalesce( p_level_cd, g_default_level), 
       left(p_logger_name, 50), left(p_context_value, 100), left(p_object_name, 100), left(p_action_cd, 50), left(p_message_text, 2000), p_details_text,
-      p_req_id, p_itm_Id, p_person_id, p_icusnum, p_object_id, p_object_id2
+      p_req_id, p_person_id, p_icusnum, p_object_id, p_object_id2, p_itm_Id
    );
 
 END;
@@ -324,7 +324,7 @@ $procedure$
    #package
    #private
 BEGIN
-
+raise debug 'try_Insert_Row';
    CALL mi_logger.insert_Row_AT (
       p_inf_id,
       p_wsp_id,
@@ -414,6 +414,7 @@ CREATE PROCEDURE trace(
    in p_message_Text   varchar,
    in p_inf_id         numeric   default null,
    in p_req_id         numeric   default null,
+   in p_itm_Id         numeric   default null,
    in p_details_text   text      default null,
    in p_action_cd      varchar   default null,
    in p_context_value  varchar   default null,
@@ -432,6 +433,7 @@ BEGIN
       p_message_text  => p_message_text,
       p_inf_id        => p_inf_id,
       p_req_id        => p_req_id,
+      p_itm_Id        => p_itm_Id,
       p_level_cd      => cLevel_Trc,
       p_details_text  => p_details_text,
       p_action_cd     => p_action_cd,
@@ -451,6 +453,7 @@ CREATE PROCEDURE debug (
    in p_message_text   varchar,
    in p_inf_id         numeric   default null,
    in p_req_id         numeric   default null,
+   in p_itm_Id         numeric   default null,
    in p_details_text   text      default null,
    in p_action_cd      varchar   default null,
    in p_context_value  varchar   default null,
@@ -469,6 +472,7 @@ BEGIN
       p_message_text  => p_message_text,
       p_inf_id        => p_inf_id,
       p_req_id        => p_req_id,
+      p_itm_Id        => p_itm_Id,
       p_level_cd      => cLevel_Dbg,
       p_details_text  => p_details_text,
       p_action_cd     => p_action_cd,
@@ -488,6 +492,7 @@ CREATE PROCEDURE info(
    in p_message_text   varchar,
    in p_inf_id         numeric   default null,
    in p_req_id         numeric   default null,
+   in p_itm_Id         numeric   default null,
    in p_details_text   text      default null,
    in p_action_cd      varchar   default null,
    in p_context_value  varchar   default null,
@@ -524,6 +529,7 @@ CREATE PROCEDURE warn(
    in p_message_text   varchar,
    in p_inf_id         numeric   default null,
    in p_req_id         numeric   default null,
+   in p_itm_Id         numeric   default null,
    in p_details_text   text      default null,
    in p_action_cd      varchar   default null,
    in p_context_value  varchar   default null,
@@ -560,6 +566,7 @@ CREATE PROCEDURE error(
    in p_message_text   varchar,
    in p_inf_id         numeric   default null,
    in p_req_id         numeric   default null,
+   in p_itm_Id         numeric   default null,
    in p_details_text   text      default null,
    in p_action_cd      varchar   default null,
    in p_context_value  varchar   default null,
@@ -602,6 +609,7 @@ CREATE PROCEDURE enter_f (
    in p_parameters    text      default null, 
    in p_inf_id        numeric   default null,
    in p_req_id        numeric   default null,
+   in p_itm_Id        numeric   default null,
    in p_person_id     numeric   default null,
    in p_icusnum       numeric   default null,
    in p_object_id     numeric   default null,
@@ -617,6 +625,7 @@ BEGIN
       p_message_text  => p_message_text,
       p_inf_id        => p_inf_id,
       p_req_id        => p_req_id,
+      p_itm_Id        => p_itm_Id,
       p_details_text  => p_parameters,
       p_action_cd     => 'enter_f'::varchar,
       p_person_id     => p_person_id,
@@ -633,6 +642,7 @@ CREATE PROCEDURE exit_f(
    in p_message_text   varchar default null,
    in p_inf_id         numeric default null,
    in p_req_id         numeric default null,
+   in p_itm_Id         numeric default null,
    in p_details_text   text    default null,
    in p_person_id      numeric default null,
    in p_icusnum        numeric default null,
@@ -648,6 +658,7 @@ BEGIN
       p_message_text  => p_message_text,
       p_inf_id        => p_inf_id,
       p_req_id        => p_req_id,
+      p_itm_Id        => p_itm_Id,
       p_details_text  => p_details_text,
       p_action_cd     => 'exit_f'::varchar,
       p_person_id     => p_person_id,
@@ -664,6 +675,7 @@ CREATE PROCEDURE label(
    in p_message_text   varchar,
    in p_inf_id         numeric default null,
    in p_req_id         numeric default null,
+   in p_itm_Id         numeric default null,
    in p_details_text   text    default null
 )
 AS
@@ -681,12 +693,14 @@ BEGIN
 END;
 $procedure$
 
+
 CREATE PROCEDURE variable_Value(
    in p_logger_name    varchar,
    in p_variable_name  varchar,
    in p_value_text     text,
    in p_inf_id         numeric default null,
    in p_req_id         numeric default null,
+   in p_itm_Id         numeric default null,
    in p_details_text   text    default null
 )
 AS
@@ -728,7 +742,8 @@ CREATE PROCEDURE call_stack(
    in p_logger_name    varchar,
    in p_message_text   varchar default null,
    in p_inf_id         numeric default null,
-   in p_req_id         numeric default null
+   in p_req_id         numeric default null,
+   in p_itm_Id         numeric default null
 )
 AS
 $procedure$
@@ -756,6 +771,7 @@ CREATE PROCEDURE log_exec_Result (
 
    in p_inf_id         numeric   default null,
    in p_req_id         numeric   default null,
+   in p_itm_Id         numeric   default null,
 
    in p_action_cd      varchar   default null,
    in p_context_value  varchar   default null,
@@ -783,13 +799,16 @@ DECLARE
    l_details_text  text;
 BEGIN
 
+   RAISE debug 'enter log_exec_Result';
+
    IF p_result IS NULL THEN
 
       CALL mi_logger.error (
          p_logger_name   => p_logger_name,
          p_message_text  => 'exec_result is NULL',
-         p_inf_id        => p_inf_id,
-         p_req_id        => p_req_id,
+         p_inf_id        => p_inf_Id,
+         p_req_id        => p_req_Id,
+         p_itm_Id        => p_itm_Id,
          p_action_cd     => coalesce(p_action_cd, 'exec_result'),
          p_context_value => p_context_value,
          p_object_name   => p_object_name,
@@ -874,6 +893,8 @@ BEGIN
 
       p_inf_id        => p_inf_id,
       p_req_id        => p_req_id,
+      p_itm_Id        => p_itm_Id,
+
       p_level_cd      => l_level_cd,
 
       p_details_text  => l_details_text,
