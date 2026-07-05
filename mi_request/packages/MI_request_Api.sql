@@ -310,7 +310,17 @@ BEGIN
       p_res_Code := ret_OK;
       p_res_Info := null;
 
-      CALL MI_logger.info( cLogger, '<Запрос взят в обработку>', l_inf_id, p_req_id, l_note_text, cAction_Name, NULL::varchar, cPkg_Name );
+      CALL MI_logger.info(
+         p_logger_name   => cLogger,
+         p_message_text  => 'Запрос взят в обработку',
+         p_inf_id        => l_inf_id,
+         p_req_id        => p_req_id,
+         p_itm_id        => NULL::numeric,
+         p_details_text  => l_note_text,
+         p_action_cd     => cAction_Name,
+         p_context_value => NULL::varchar,
+         p_object_name   => cPkg_Name
+      );
 
       RETURN;
 
@@ -349,7 +359,17 @@ BEGIN
             'Не возможно взять запрос в обработку. Текущий статус: ' || coalesce(l_prev_status_cd::varchar, '<NULL>');
    END IF;
 
-   CALL MI_logger.info( cLogger, 'take_For_Proc rejected', l_inf_id, p_req_id, p_res_Info, cAction_Name, NULL::varchar, cPkg_Name );
+   CALL MI_logger.info(
+      p_logger_name   => cLogger,
+      p_message_text  => 'take_For_Proc rejected',
+      p_inf_id        => l_inf_id,
+      p_req_id        => p_req_id,
+      p_itm_id        => NULL::numeric,
+      p_details_text  => p_res_info,
+      p_action_cd     => cAction_Name,
+      p_context_value => NULL::varchar,
+      p_object_name   => cPkg_Name
+   );
 
 EXCEPTION
    WHEN OTHERS THEN
@@ -362,12 +382,17 @@ EXCEPTION
             ex.PG_EXCEPTION_DETAIL  = PG_EXCEPTION_DETAIL,
             ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
             ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
-      
-            CALL mi_logger.error ( 
-                 cLogger, 
-                 cAction_Name || ' failed',
-                 l_inf_id, p_req_id, 
-                 TS.WhenOthersError( cAction_Name, ex ), 'exception', NULL::varchar, cPkg_Name
+
+            CALL mi_logger.error(
+               p_logger_name   => cLogger,
+               p_message_text  => cAction_Name || ' failed',
+               p_inf_id        => l_inf_id,
+               p_req_id        => p_req_id,
+               p_itm_id        => NULL::numeric,
+               p_details_text  => TS.WhenOthersError(cAction_Name, ex),
+               p_action_cd     => 'exception',
+               p_context_value => ex.RETURNED_SQLSTATE,
+               p_object_name   => cPkg_Name
             );
 
       END; 

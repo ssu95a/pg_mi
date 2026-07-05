@@ -390,7 +390,7 @@ BEGIN
    call mi_logger.resolve_Id( p_inf_id, p_req_id, l_inf_id, l_wsp_id );
 
    CALL mi_logger.emit_Raise (
-      p_logger_name, p_level_cd, p_action_cd, p_message_text, p_context_value, p_req_id, itm_Id, p_person_id, p_object_id, p_object_id2, p_details_text 
+      p_logger_name, p_level_cd, p_action_cd, p_message_text, p_context_value, p_req_id, p_itm_Id, p_person_id, p_object_id, p_object_id2, p_details_text 
    );
 
    -- Если маршрут не определился - в таблицу не пишем, но RAISE уже был
