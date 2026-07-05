@@ -235,10 +235,8 @@ $function$
 CREATE FUNCTION get_Status (
    in p_req_id numeric
 )
-   RETURNS 
+   returns
       numeric
-   LANGUAGE 
-      plpgsql
 AS
 $function$
    #package
@@ -246,13 +244,13 @@ DECLARE
    l_status numeric;
 BEGIN
 
-   SELECT status_cd
-     INTO STRICT 
+   select status_cd
+     into strict 
           l_status
-     FROM mi_req
-    WHERE req_id = p_req_id;
+     from mi_req
+    where req_id = p_req_id;
 
-   RETURN l_status;
+   return l_status;
 
 END;
 $function$
@@ -347,19 +345,16 @@ BEGIN
       p_res_Info := 'Не возможно взять запрос в обработку. Т.к. он уже обрабатывается.' || CASE WHEN l_curr_note IS NOT NULL THEN E'\n' || l_curr_note ELSE '' END;
 
    ELSIF l_prev_status_cd = cStatus_done THEN
-         p_res_Info := 
-            'Не возможно взять запрос в обработку. Т.к. он уже успешно обработан. Если необходимо, сначала сбросьте состояние запроса.';
+         p_res_Info := 'Не возможно взять запрос в обработку. Т.к. он уже успешно обработан. Если необходимо, сначала сбросьте состояние запроса.';
 
    ELSIF l_prev_status_cd = cStatus_sent THEN
-         p_res_Info :=
-            'Не возможно взять запрос в обработку. Т.к. он уже отправлен во внешний сервис и ожидает завершения обработки.';
+         p_res_Info := 'Не возможно взять запрос в обработку. Т.к. он уже отправлен во внешний сервис и ожидает завершения обработки.';
 
    ELSE
-      p_res_Info :=
-            'Не возможно взять запрос в обработку. Текущий статус: ' || coalesce(l_prev_status_cd::varchar, '<NULL>');
+      p_res_Info := 'Не возможно взять запрос в обработку. Текущий статус: ' || coalesce(l_prev_status_cd::varchar, '<NULL>');
    END IF;
 
-   CALL MI_logger.info(
+   CALL MI_logger.info (
       p_logger_name   => cLogger,
       p_message_text  => 'take_For_Proc rejected',
       p_inf_id        => l_inf_id,
@@ -383,7 +378,7 @@ EXCEPTION
             ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
             ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
 
-            CALL mi_logger.error(
+            CALL mi_logger.error (
                p_logger_name   => cLogger,
                p_message_text  => cAction_Name || ' failed',
                p_inf_id        => l_inf_id,
@@ -394,7 +389,6 @@ EXCEPTION
                p_context_value => ex.RETURNED_SQLSTATE,
                p_object_name   => cPkg_Name
             );
-
       END; 
 
    p_res_code := ret_Fail;
@@ -440,7 +434,17 @@ RETURNING OLD.inf_id,
       p_res_Code := ret_OK;
       p_res_Info := null;
 
-      CALL MI_logger.info( cLogger, 'Request moved to sent', l_inf_id, p_req_id, NULL::varchar, cAction_Name, NULL::varchar, cPkg_Name );
+      CALL MI_logger.info(
+         p_logger_name   => cLogger,
+         p_message_text  => 'Request moved to sent',
+         p_inf_id        => l_inf_id,
+         p_req_id        => p_req_id,
+         p_itm_id        => NULL::numeric,
+         p_details_text  => NULL::text,
+         p_action_cd     => cAction_Name,
+         p_context_value => NULL::varchar,
+         p_object_name   => cPkg_Name
+      );
 
       RETURN;
 
@@ -473,7 +477,17 @@ RETURNING OLD.inf_id,
       p_res_Info := 'Не возможно перевести запрос в статус "отправлен". Текущий статус: ' || coalesce(l_prev_status_cd::varchar, '<NULL>');
    END IF;
 
-   CALL MI_logger.info( cLogger, 'to_Sent rejected', l_inf_id, p_req_id, p_res_Info, cAction_Name, NULL::varchar, cPkg_Name );
+   CALL MI_logger.info (
+      p_logger_name   => cLogger,
+      p_message_text  => 'to_Sent rejected',
+      p_inf_id        => l_inf_id,
+      p_req_id        => p_req_id,
+      p_itm_id        => NULL::numeric,
+      p_details_text  => p_res_info,
+      p_action_cd     => cAction_Name,
+      p_context_value => NULL::varchar,
+      p_object_name   => cPkg_Name
+   );
 
 EXCEPTION
    WHEN OTHERS THEN
@@ -487,11 +501,16 @@ EXCEPTION
             ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
             ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
       
-            CALL MI_logger.error( 
-                 cLogger, 
-                 cAction_Name || 'failed',
-                 l_inf_id, p_req_id, 
-                 TS.WhenOthersError( cPkg_Name || '.' || cAction_Name, ex ), 'exception', NULL::varchar, cPkg_Name 
+            CALL MI_logger.error (
+               p_logger_name   => cLogger,
+               p_message_text  => cAction_Name || ' failed',
+               p_inf_id        => l_inf_id,
+               p_req_id        => p_req_id,
+               p_itm_id        => NULL::numeric,
+               p_details_text  => TS.WhenOthersError( cPkg_Name || '.' || cAction_Name, ex  ),
+               p_action_cd     => 'exception',
+               p_context_value => ex.RETURNED_SQLSTATE,
+               p_object_name   => cPkg_Name
             );
 
       END; 
