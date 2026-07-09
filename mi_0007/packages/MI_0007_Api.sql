@@ -974,7 +974,7 @@ BEGIN
          l_json_person
       );
 
-      l_item_id := mi_0007_Api.create_Item (
+      l_itm_id := mi_0007_Api.create_Item (
          p_req_id,
          l_person_id
       );
@@ -1025,31 +1025,185 @@ $procedure$
 /*
    Записать бизнес-результат по item
 */
-CREATE PROCEDURE set_Result (
-   in p_itm_id      NUMERIC,
-   in p_ires_code   NUMERIC,
-   in p_cres_info   text DEFAULT NULL,
-   in p_tres_time   timestamptz DEFAULT clock_timestamp()
+CREATE PROCEDURE apply_Item_Result (
+
+   in p_request_uuid uuid,
+   in p_message_uuid uuid,
+   in p_item_uuid    uuid,
+
+   in p_ires_code    numeric,
+   in p_cres_info    text,
+   in p_tres_time    timestamptz,
+
+   out p_res_code    int4,
+   out p_res_info    varchar
 )
-   LANGUAGE 
-      plPGsql
 AS
 $procedure$
    #package
+DECLARE
+
+   cFunc constant varchar := cPkg_Name || '.apply_Item_Result';
+
+   cAlreadyApplied constant int4 :=  1;
+   cConflict       constant int4 := -2;
+
+   l_itm_id                numeric;
+   l_req_id                numeric;
+
+   l_current_message_uuid  uuid;
+   l_current_ires_code     numeric;
+   l_current_tres_time     timestamp;
+   l_current_cres_info     text;
+
+   l_updated_count         int4;
+
 BEGIN
 
-   UPDATE xxi.mi_0007
-      SET ires_code = p_ires_code,
-          cres_info = p_cres_info,
-          tres_time = p_tres_time
-    WHERE 
-          itm_id = p_itm_id;
+   p_res_code := ret_FAIL;
+   p_res_info := 'Unhandled error in ' || cFunc;
 
-   IF NOT FOUND THEN
-      RAISE EXCEPTION USING
-         ERRCODE = 'MI',
-         MESSAGE = format('mi_0007_Api.set_Result: itm_id=%s not found', p_itm_id);
+   call MI_logger.enter_f (
+      p_logger_name  => cLogger, 
+      p_function_name=> cFunc,
+      p_message_text => p_cres_info,
+      p_parameters   => 'p_ires_code=' || p_ires_code || ', p_item_uuid = ' || p_item_uuid,
+      p_itm_Id       => null
+   );
+
+   /*
+    * Проверка обязательных идентификаторов.
+    */
+   IF p_request_uuid IS NULL THEN
+      p_res_info := 'p_request_uuid is null';
+      RETURN;
    END IF;
+
+   IF p_message_uuid IS NULL THEN
+      p_res_info := 'p_message_uuid is null';
+      RETURN;
+   END IF;
+
+   IF p_item_uuid IS NULL THEN
+      p_res_info := 'p_item_uuid is null';
+      RETURN;
+   END IF;
+
+   IF p_ires_code IS NULL THEN
+      p_res_info := 'p_ires_code is null';
+      RETURN;
+   END IF;
+
+   /*
+    * Находим item внутри конкретного request и сразу блокируем его до завершения транзакции.
+    */
+   BEGIN
+      SELECT i.itm_id,
+             i.req_id,
+             i.message_uuid,
+             i.ires_code,
+             i.tres_time,
+             i.cres_info
+        INTO STRICT
+             l_itm_id,
+             l_req_id,
+             l_current_message_uuid,
+             l_current_ires_code,
+             l_current_tres_time,
+             l_current_cres_info
+        FROM xxi.mi_0007 i
+        JOIN xxi.mi_req r ON r.req_id = i.req_id
+       WHERE r.external_uuid = p_request_uuid
+         AND i.external_uuid = p_item_uuid
+         FOR 
+             UPDATE OF i;
+
+   EXCEPTION
+      WHEN NO_DATA_FOUND THEN
+         p_res_code := ret_Fail;
+         p_res_info := 'Item not found: request_external_uuid=' || p_request_uuid || ', item_external_uuid=' || p_item_uuid;
+
+         RETURN;
+
+      WHEN too_many_rows THEN
+         /*
+          * При UNIQUE на mi_0007.external_uuid этого быть
+          * не должно. Считаем нарушением данных.
+          */
+         RAISE EXCEPTION
+            'More than one item found: request_external_uuid=%, item_external_uuid=%', p_request_uuid, p_item_external_uuid;
+   END;
+
+   /*
+    * Item уже был финализирован.
+    */
+   IF l_current_message_uuid IS DISTINCT FROM p_message_uuid THEN
+
+      /*
+       * То же сообщение и ровно те же данные:
+       * успешный идемпотентный no-op.
+       */
+      IF l_current_ires_code IS NOT DISTINCT FROM p_ires_code AND 
+         l_current_tres_time IS NOT DISTINCT FROM p_tres_time
+      THEN
+         p_res_code := cAlreadyApplied;
+         p_res_info := 'Item already applied: itm_id=' || l_itm_id || ', message_uuid=' || p_message_uuid;
+
+         RETURN;
+
+      END IF;
+
+      /*
+       * Тот же UUID сообщения, но данные отличаются.
+       * Это нарушение контракта сообщения.
+       */
+      p_res_code := cConflict;
+      p_res_info := 'Item replay conflict: message_uuid=' || p_message_uuid || ', itm_id=' || l_itm_id || ', stored result differs from incoming result';
+
+      RETURN;
+
+   elsif l_current_message_uuid is not null then
+      /*
+       * Item уже обработан другим сообщением. Политика first-wins.
+       */
+      p_res_code := cConflict;
+      p_res_info := 'Item already finalized by another message: itm_id='
+                     || l_itm_id
+                     || ', stored_message_uuid='
+                     || l_current_message_uuid
+                     || ', incoming_message_uuid='
+                     || p_message_uuid;
+      RETURN;
+
+   END IF;
+
+   /*
+    * Первое применение результата.
+    */
+   UPDATE xxi.mi_0007
+      SET ires_code    = p_ires_code,
+          tres_time    = p_tres_time,
+          cres_info    = p_cres_info,
+          message_uuid = p_message_uuid
+    WHERE itm_id = l_itm_id
+      AND message_uuid IS NULL;
+
+   GET DIAGNOSTICS l_updated_count = ROW_COUNT;
+
+   /*
+    * Строка заблокирована FOR UPDATE, поэтому отсутствие
+    * обновления означает неожиданную проблему состояния.
+    * Не превращаем её в бизнес-ответ, пусть XXL сделает retry.
+    */
+   IF l_updated_count <> 1 THEN
+      RAISE EXCEPTION
+         'Unexpected item update count: itm_id=%, updated_count=%',
+         l_itm_id,
+         l_updated_count;
+   END IF;
+
+   p_res_code := ret_Ok;
+   p_res_info := 'Item applied: itm_id=' || l_itm_id || ', req_id=' || l_req_id || ', message_uuid=' || p_message_uuid;
 
 END;
 $procedure$
@@ -1065,7 +1219,7 @@ CREATE PROCEDURE complete_Request (
    in p_ires_code      NUMERIC,
    in p_cres_info      text DEFAULT NULL,
    in p_tres_time      timestamptz DEFAULT clock_timestamp(),
-   in p_req_status_cd  NUMERIC
+   in p_req_status_cd  NUMERIC DEFAULT NULL
 )
    LANGUAGE
       plpgsql
@@ -1073,7 +1227,7 @@ AS
 $procedure$
    #package
 BEGIN
-   CALL mi_0007_Api.set_Result (
+   CALL mi_0007_Api.apply_Item_Result (
       p_itm_id    => p_itm_id,
       p_ires_code => p_ires_code,
       p_cres_info => p_cres_info,

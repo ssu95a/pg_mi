@@ -523,45 +523,48 @@ $procedure$
 
 /* Перевод в успешный статус */
 CREATE PROCEDURE to_Success(
-   in  p_req_Id   numeric,
-   out p_res_Code int4,
-   out p_res_Info varchar
+   in  p_req_id   numeric,
+   out p_res_code int4,
+   out p_res_info varchar
 )
 AS
 $procedure$
 DECLARE
-   cAction_Name   constant varchar(20) := 'to_success';
+   
+   cAction_Name constant varchar(50) := cPkg_Name || '.to_success';
 
    l_inf_id         numeric;
    l_prev_status_cd numeric;
-
-   l_sqlstate       text;
-   l_message        text;
-   l_detail         text;
-   l_hint           text;
-   l_context        text;
 BEGIN
-   p_res_Code := ret_Fail;
-   p_res_Info := null;
+   p_res_code := ret_Fail;
+   p_res_info := NULL;
 
    UPDATE xxi.mi_req r
       SET status_cd = cStatus_done
     WHERE r.req_id = p_req_id
       AND r.status_cd = cStatus_sent
-    RETURNING OLD.inf_id,
-              OLD.status_cd
-         INTO l_inf_id,
-              l_prev_status_cd;
+   RETURNING OLD.inf_id,
+             OLD.status_cd
+        INTO l_inf_id,
+             l_prev_status_cd;
 
    IF FOUND THEN
+      p_res_code := ret_OK;
+      p_res_info := NULL;
 
-      p_res_Code := ret_OK;
-      p_res_Info := null;
+      CALL MI_logger.info(
+         p_logger_name   => cLogger,
+         p_message_text  => 'Request moved to success',
+         p_inf_id        => l_inf_id,
+         p_req_id        => p_req_id,
+         p_itm_id        => NULL::numeric,
+         p_details_text  => NULL::text,
+         p_action_cd     => cAction_Name,
+         p_context_value => NULL::varchar,
+         p_object_name   => cPkg_Name
+      );
 
-      CALL MI_logger.info( cLogger, 'Request moved to success', l_inf_id, p_req_id, NULL::varchar, cAction_Name, NULL::varchar, cPkg_Name );
-      
       RETURN;
-
    END IF;
 
    SELECT r.inf_id,
@@ -572,94 +575,130 @@ BEGIN
     WHERE r.req_id = p_req_id;
 
    IF NOT FOUND THEN
-      p_res_Info := 'Не найден запрос с req_id = ' || p_req_id;
+      p_res_info :=
+         'Не найден запрос с req_id = ' || p_req_id;
 
    ELSIF l_prev_status_cd = cStatus_done THEN
-         p_res_Info 
-            := 'Не возможно перевести запрос в статус "успешно обработан". Т.к. он уже успешно обработан.';
+      p_res_info :=
+         'Невозможно перевести запрос в статус "успешно обработан", '
+         || 'так как он уже успешно обработан.';
 
    ELSIF l_prev_status_cd = cStatus_busy THEN
-         p_res_Info 
-            := 'Не возможно перевести запрос в статус "успешно обработан". Т.к. запрос ещё находится в обработке и не зафиксирован как отправленный.';
+      p_res_info :=
+         'Невозможно перевести запрос в статус "успешно обработан", '
+         || 'так как запрос ещё находится в обработке '
+         || 'и не зафиксирован как отправленный.';
 
    ELSIF l_prev_status_cd = cStatus_new THEN
-         p_res_Info 
-            := 'Не возможно перевести запрос в статус "успешно обработан". Т.к. он ещё не был взят в обработку и отправлен.';
+      p_res_info :=
+         'Невозможно перевести запрос в статус "успешно обработан", '
+         || 'так как он ещё не был взят в обработку и отправлен.';
 
    ELSIF l_prev_status_cd = cStatus_error THEN
-         p_res_Info 
-            := 'Не возможно перевести запрос в статус "успешно обработан". Т.к. он находится в ошибочном статусе.';
+      p_res_info :=
+         'Невозможно перевести запрос в статус "успешно обработан", '
+         || 'так как он находится в ошибочном статусе.';
 
    ELSE
-      p_res_Info := 'Не возможно перевести запрос в статус "успешно обработан". Текущий статус: '
-                       || coalesce(l_prev_status_cd::varchar, '<NULL>');
+      p_res_info :=
+         'Невозможно перевести запрос в статус "успешно обработан". '
+         || 'Текущий статус: '
+         || coalesce(l_prev_status_cd::varchar, '<NULL>');
    END IF;
 
-   CALL MI_logger.info( cLogger, 'to_Success rejected', l_inf_id, p_req_id, p_res_Info, cAction_Name, NULL::varchar, cPkg_Name );
+   CALL MI_logger.info(
+      p_logger_name   => cLogger,
+      p_message_text  => 'to_Success rejected',
+      p_inf_id        => l_inf_id,
+      p_req_id        => p_req_id,
+      p_itm_id        => NULL::numeric,
+      p_details_text  => p_res_info,
+      p_action_cd     => cAction_Name,
+      p_context_value => NULL::varchar,
+      p_object_name   => cPkg_Name
+   );
 
 EXCEPTION
    WHEN OTHERS THEN
       DECLARE
          ex TS.T_StackedDiagnostics;
       BEGIN
-        GET STACKED DIAGNOSTICS                       
-            ex.RETURNED_SQLSTATE    = RETURNED_SQLSTATE,  
+
+         GET STACKED DIAGNOSTICS
+            ex.RETURNED_SQLSTATE    = RETURNED_SQLSTATE,
             ex.MESSAGE_TEXT         = MESSAGE_TEXT,
             ex.PG_EXCEPTION_DETAIL  = PG_EXCEPTION_DETAIL,
             ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
-            ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
-      
-            CALL MI_logger.error( 
-                 cLogger, 
-                 'to_Success failed',
-                 l_inf_id, p_req_id, 
-                 TS.WhenOthersError( cPkg_Name || '.to_Success', ex ), 'exception', NULL::varchar, cPkg_Name 
-            );
+            ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;
 
-      END; 
+         CALL MI_logger.error (
+            p_logger_name   => cLogger,
+            p_message_text  => cAction_Name || ' failed',
+            p_inf_id        => l_inf_id,
+            p_req_id        => p_req_id,
+            p_itm_id        => NULL::numeric,
+            p_details_text  => TS.WhenOthersError( cAction_Name, ex ),
+            p_action_cd     => 'exception',
+            p_context_value => ex.RETURNED_SQLSTATE,
+            p_object_name   => cPkg_Name
+         );
 
-   RAISE;
+      END;
 
+      RAISE;
 END;
 $procedure$
 
 
-/* */
+/* Перевод в ошибочный статус */
 CREATE PROCEDURE to_Error(
-   in  p_req_Id   numeric,
-   out p_res_Code int4,
-   out p_res_Info varchar
+   in  p_req_id   numeric,
+   out p_res_code int4,
+   out p_res_info varchar
 )
 AS
 $procedure$
 DECLARE
-   cAction_Name     constant varchar := cPkg_Name || '.to_error';
+
+   cAction_Name constant varchar(50) := cPkg_Name || '.to_error';
 
    l_inf_id         numeric;
    l_prev_status_cd numeric;
 
 BEGIN
-   p_res_Code := ret_Fail;
-   p_res_Info := null;
+
+   p_res_code := ret_Fail;
+   p_res_info := NULL;
 
    UPDATE xxi.mi_req r
       SET status_cd = cStatus_error
-    WHERE r.req_id  = p_req_id
-      AND r.status_cd IN ( cStatus_busy, cStatus_sent )
-    RETURNING old.inf_id,
-              old.status_cd
-         INTO l_inf_id,
-              l_prev_status_cd;
+    WHERE r.req_id = p_req_id
+      AND r.status_cd IN (
+         cStatus_busy,
+         cStatus_sent
+      )
+   RETURNING OLD.inf_id,
+             OLD.status_cd
+        INTO l_inf_id,
+             l_prev_status_cd;
 
    IF FOUND THEN
+      p_res_code := ret_OK;
+      p_res_info := NULL;
 
-      p_res_Code := ret_OK;
-      p_res_Info := null;
-
-      CALL MI_logger.info( cLogger, 'Request moved to error', l_inf_id, p_req_id, NULL::varchar, cAction_Name, NULL::varchar, cPkg_Name );
+      CALL MI_logger.info(
+         p_logger_name   => cLogger,
+         p_message_text  => 'Request moved to error',
+         p_inf_id        => l_inf_id,
+         p_req_id        => p_req_id,
+         p_itm_id        => NULL::numeric,
+         p_details_text  => NULL::text,
+         p_action_cd     => cAction_Name,
+         p_context_value => NULL::varchar,
+         p_object_name   => cPkg_Name
+      );
 
       RETURN;
-
    END IF;
 
    SELECT r.inf_id,
@@ -670,47 +709,75 @@ BEGIN
     WHERE r.req_id = p_req_id;
 
    IF NOT FOUND THEN
-      p_res_Info := 'Не найден запрос с req_id = ' || p_req_id;
+      p_res_info := 'Не найден запрос с req_id = ' || p_req_id;
 
    ELSIF l_prev_status_cd = cStatus_error THEN
-      p_res_Info := 'Не возможно перевести запрос в статус "ошибка". Т.к. он уже находится в ошибочном статусе.';
+      p_res_info := 'Невозможно перевести запрос в статус "ошибка", так как он уже находится в ошибочном статусе.';
 
    ELSIF l_prev_status_cd = cStatus_done THEN
-      p_res_Info := 'Не возможно перевести запрос в статус "ошибка". Т.к. он уже успешно обработан.';
+      p_res_info :=
+         'Невозможно перевести запрос в статус "ошибка", '
+         || 'так как он уже успешно обработан.';
 
    ELSIF l_prev_status_cd = cStatus_new THEN
-      p_res_Info := 'Не возможно перевести запрос в статус "ошибка". Т.к. он ещё не был взят в обработку.';
+      p_res_info :=
+         'Невозможно перевести запрос в статус "ошибка", '
+         || 'так как он ещё не был взят в обработку.';
 
    ELSE
-      p_res_Info := 'Не возможно перевести запрос в статус "ошибка". Текущий статус: '
-                       || coalesce(l_prev_status_cd::varchar, '<NULL>');
+      p_res_info :=
+         'Невозможно перевести запрос в статус "ошибка". '
+         || 'Текущий статус: '
+         || coalesce(l_prev_status_cd::varchar, '<NULL>');
    END IF;
 
-   CALL MI_logger.info( cLogger, 'to_Error rejected', l_inf_id, p_req_id, p_res_Info, cAction_Name, NULL::varchar, cPkg_Name );
+   CALL MI_logger.info(
+      p_logger_name   => cLogger,
+      p_message_text  => 'to_Error rejected',
+      p_inf_id        => l_inf_id,
+      p_req_id        => p_req_id,
+      p_itm_id        => NULL::numeric,
+      p_details_text  => p_res_info,
+      p_action_cd     => cAction_Name,
+      p_context_value => NULL::varchar,
+      p_object_name   => cPkg_Name
+   );
 
 EXCEPTION
    WHEN OTHERS THEN
       DECLARE
          ex TS.T_StackedDiagnostics;
       BEGIN
-        GET STACKED DIAGNOSTICS                       
-            ex.RETURNED_SQLSTATE    = RETURNED_SQLSTATE,  
-            ex.MESSAGE_TEXT         = MESSAGE_TEXT,
-            ex.PG_EXCEPTION_DETAIL  = PG_EXCEPTION_DETAIL,
-            ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
-            ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
-      
-            CALL MI_logger.error( 
-                 cLogger, 
-                 'to_Error failed',
-                 l_inf_id, p_req_id, 
-                 TS.WhenOthersError( cPkg_Name || '.to_Error', ex ), 'exception', NULL::varchar, cPkg_Name 
-            );
+         GET STACKED DIAGNOSTICS
+            ex.RETURNED_SQLSTATE =
+               RETURNED_SQLSTATE,
+            ex.MESSAGE_TEXT =
+               MESSAGE_TEXT,
+            ex.PG_EXCEPTION_DETAIL =
+               PG_EXCEPTION_DETAIL,
+            ex.PG_EXCEPTION_HINT =
+               PG_EXCEPTION_HINT,
+            ex.PG_EXCEPTION_CONTEXT =
+               PG_EXCEPTION_CONTEXT;
 
-      END; 
+         CALL MI_logger.error(
+            p_logger_name   => cLogger,
+            p_message_text  => cAction_Name || ' failed',
+            p_inf_id        => l_inf_id,
+            p_req_id        => p_req_id,
+            p_itm_id        => NULL::numeric,
+            p_details_text  =>
+               TS.WhenOthersError(
+                  cAction_Name,
+                  ex
+               ),
+            p_action_cd     => 'exception',
+            p_context_value => ex.RETURNED_SQLSTATE,
+            p_object_name   => cPkg_Name
+         );
+      END;
 
-   RAISE;
-
+      RAISE;
 END;
 $procedure$
 
@@ -981,8 +1048,19 @@ begin
    p_res_code := -1;
    p_res_Info := 'Unhandled error in ' || cAction_Name;
 
-   call MI_logger.enter_f( cLogger, cAction_Name, 'Отрицательный ответ от MI/SMEV на запрос'::varchar, 
-                          'p_external_uuid=' || p_external_uuid || ', p_reason= ' || p_reason_code || ', p_error_code = ' || p_error_code  );
+/*   call MI_logger.enter_f( cLogger, cAction_Name, 'Отрицательный ответ от MI/SMEV на запрос'::varchar, 
+                          'p_external_uuid=' || p_external_uuid || ', p_reason= ' || p_reason_code || ', p_error_code = ' || p_error_code  ); */
+
+   CALL MI_logger.enter_f(
+      p_logger_name   => cLogger,
+      p_function_name => cAction_Name,
+      p_message_text  => 'Отрицательный ответ от MI/SMEV на запрос'::varchar,
+      p_parameters    => 'p_external_uuid=' || p_external_uuid || ', p_reason= ' || p_reason_code || ', p_error_code = ' || p_error_code,
+      p_inf_id        => NULL::numeric,
+      p_req_id        => NULL::numeric,
+      p_itm_id        => NULL::numeric
+   );
+
 
    /*
     * Нормализуем значение transport enum:
@@ -1042,7 +1120,7 @@ begin
          RETURN;
    END;
 
-   call MI_logger.variable_Value( cLogger, 'req_id', l_req_Id, p_inf_id => l_inf_id, p_req_id => l_req_Id );
+   -- call MI_logger.variable_Value( cLogger, 'req_id', l_req_Id, p_inf_id => l_inf_id, p_req_id => l_req_Id );
 
    -- Запрос уже установлен в ошибочный статус. 
    IF l_status_cd = -1 THEN
@@ -1117,12 +1195,17 @@ EXCEPTION
             ex.PG_EXCEPTION_DETAIL  = PG_EXCEPTION_DETAIL,
             ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
             ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;
-      
-            CALL MI_logger.error ( 
-                 cLogger, 
-                 cAction_Name || ' failed',
-                 l_inf_id, l_req_Id, 
-                 TS.WhenOthersError( cAction_Name, ex ), 'exception', NULL::varchar, NULL::varchar
+
+            CALL MI_logger.error(
+               p_logger_name   => cLogger,
+               p_message_text  => cAction_Name || ' failed',
+               p_inf_id        => l_inf_id,
+               p_req_id        => l_req_id,
+               p_itm_id        => NULL::numeric,
+               p_details_text  => TS.WhenOthersError( cAction_Name, ex ),
+               p_action_cd     => 'exception',
+               p_context_value => ex.RETURNED_SQLSTATE,
+               p_object_name   => cPkg_Name
             );
       END; 
 
