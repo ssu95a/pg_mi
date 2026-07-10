@@ -95,6 +95,7 @@ CREATE INDEX IF NOT EXISTS ix_mi_person__doc_fio ON xxi.mi_person USING btree
    upper(first_name)
 )
 TABLESPACE indexes;
+
 -- Äëÿ fk_mi_person__cus
 CREATE INDEX IF NOT EXISTS fx_mi_person__icusnum ON xxi.mi_person USING btree
 (

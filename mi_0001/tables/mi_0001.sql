@@ -8,14 +8,14 @@ CREATE TABLE IF NOT EXISTS xxi.mi_0001 (
 -- |   column      |  type      |   null  | default 
 -- +---------------------------------------------------------------------------
       itm_id        numeric(12)   NOT NULL  DEFAULT nextval('xxi.s_mi_item'::regclass),
-      external_uuid uuid          NOT NULL  DEFAULT gen_random_uuid(),    
+      external_uuid uuid          NOT NULL  DEFAULT uuidv7(),
       req_id        numeric(12)   NOT NULL,
-      person_id     numeric(12)   NOT NULL, 
-      icusnum       numeric(12)   NOT NULL, 
+      person_id     numeric(12)   NOT NULL,
+      icusnum       numeric(12)   NOT NULL,
       created_at    timestamp     NOT NULL  DEFAULT current_timestamp,
-      inn           varchar(13)       NULL,      
-      ires_code     numeric(3)        NULL,  
-      tres_time     timestamp         NULL,  
+      inn           varchar(13)       NULL,
+      ires_code     numeric(3)        NULL,
+      tres_time     timestamp         NULL,
       cres_info     text              NULL,
       message_uuid  uuid,
 

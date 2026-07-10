@@ -1027,16 +1027,20 @@ $procedure$
 */
 CREATE PROCEDURE apply_Item_Result (
 
-   in p_request_uuid uuid,
-   in p_message_uuid uuid,
-   in p_item_uuid    uuid,
+   in p_request_uuid  uuid,
+   in p_message_uuid  uuid,
+   in p_item_uuid     uuid,
 
-   in p_ires_code    numeric,
-   in p_cres_info    text,
-   in p_tres_time    timestamptz,
+   in p_ires_code     numeric,
+   in p_cres_info     text,
+   in p_tres_time     timestamptz,
 
-   out p_res_code    int4,
-   out p_res_info    varchar
+   in p_response_code varchar,
+
+   in p_payload_text  text,
+
+  out p_ret_code      int4,
+  out p_ret_info      varchar
 )
 AS
 $procedure$
@@ -1052,16 +1056,15 @@ DECLARE
    l_req_id                numeric;
 
    l_current_message_uuid  uuid;
-   l_current_ires_code     numeric;
-   l_current_tres_time     timestamp;
-   l_current_cres_info     text;
 
    l_updated_count         int4;
 
+   l_payload               jsonb;
+
 BEGIN
 
-   p_res_code := ret_FAIL;
-   p_res_info := 'Unhandled error in ' || cFunc;
+   p_ret_code := ret_FAIL;
+   p_ret_info := 'Unhandled error in ' || cFunc;
 
    call MI_logger.enter_f (
       p_logger_name  => cLogger, 
@@ -1075,23 +1078,50 @@ BEGIN
     * Проверка обязательных идентификаторов.
     */
    IF p_request_uuid IS NULL THEN
-      p_res_info := 'p_request_uuid is null';
+      p_ret_info := 'p_request_uuid is null';
       RETURN;
    END IF;
 
    IF p_message_uuid IS NULL THEN
-      p_res_info := 'p_message_uuid is null';
+      p_ret_info := 'p_message_uuid is null';
       RETURN;
    END IF;
 
    IF p_item_uuid IS NULL THEN
-      p_res_info := 'p_item_uuid is null';
+      p_ret_info := 'p_item_uuid is null';
       RETURN;
    END IF;
 
    IF p_ires_code IS NULL THEN
-      p_res_info := 'p_ires_code is null';
+      p_ret_info := 'p_ires_code is null';
       RETURN;
+   END IF;
+
+   IF p_ires_code = -1 AND p_response_code IS NULL THEN
+      p_ret_info := 'p_response_code is null for failed item';
+      RETURN;
+   END IF;
+
+   IF p_ires_code <> -1 AND p_response_code IS NOT NULL THEN
+      p_ret_info := 'p_response_code must be null for successful item';
+      RETURN;
+   END IF;   
+
+   IF p_ires_code <> -1 AND p_payload_text IS NULL THEN
+      p_ret_info := 'p_payload_text is null for successful item';
+      RETURN;
+   END IF;
+
+   IF p_ires_code <> -1 THEN
+      BEGIN
+         l_payload := p_payload_text::jsonb;
+      EXCEPTION
+         WHEN OTHERS THEN
+            RAISE EXCEPTION
+               'Invalid JSON payload for mi_0007 item: request_uuid=%, item_uuid=%',
+               p_request_uuid,
+               p_item_uuid;
+      END;
    END IF;
 
    /*
@@ -1100,17 +1130,11 @@ BEGIN
    BEGIN
       SELECT i.itm_id,
              i.req_id,
-             i.message_uuid,
-             i.ires_code,
-             i.tres_time,
-             i.cres_info
+             i.message_uuid
         INTO STRICT
              l_itm_id,
              l_req_id,
-             l_current_message_uuid,
-             l_current_ires_code,
-             l_current_tres_time,
-             l_current_cres_info
+             l_current_message_uuid
         FROM xxi.mi_0007 i
         JOIN xxi.mi_req r ON r.req_id = i.req_id
        WHERE r.external_uuid = p_request_uuid
@@ -1121,7 +1145,7 @@ BEGIN
    EXCEPTION
       WHEN NO_DATA_FOUND THEN
          p_res_code := ret_Fail;
-         p_res_info := 'Item not found: request_external_uuid=' || p_request_uuid || ', item_external_uuid=' || p_item_uuid;
+         p_ret_info := 'Item not found: request_external_uuid=' || p_request_uuid || ', item_external_uuid=' || p_item_uuid;
 
          RETURN;
 
@@ -1130,52 +1154,29 @@ BEGIN
           * При UNIQUE на mi_0007.external_uuid этого быть
           * не должно. Считаем нарушением данных.
           */
-         RAISE EXCEPTION
-            'More than one item found: request_external_uuid=%, item_external_uuid=%', p_request_uuid, p_item_external_uuid;
+         RAISE EXCEPTION 'More than one item found: request_external_uuid=%, item_external_uuid=%', p_request_uuid, p_item_external_uuid;
    END;
 
    /*
     * Item уже был финализирован.
     */
-   IF l_current_message_uuid IS DISTINCT FROM p_message_uuid THEN
-
-      /*
-       * То же сообщение и ровно те же данные:
-       * успешный идемпотентный no-op.
-       */
-      IF l_current_ires_code IS NOT DISTINCT FROM p_ires_code AND 
-         l_current_tres_time IS NOT DISTINCT FROM p_tres_time
-      THEN
-         p_res_code := cAlreadyApplied;
-         p_res_info := 'Item already applied: itm_id=' || l_itm_id || ', message_uuid=' || p_message_uuid;
-
+   IF l_current_message_uuid IS NOT NULL THEN
+      IF l_current_message_uuid = p_message_uuid THEN
+         
+         p_ret_code := cAlreadyApplied;
+         p_ret_info := 'Item already applied...';
+         
          RETURN;
 
       END IF;
 
-      /*
-       * Тот же UUID сообщения, но данные отличаются.
-       * Это нарушение контракта сообщения.
-       */
-      p_res_code := cConflict;
-      p_res_info := 'Item replay conflict: message_uuid=' || p_message_uuid || ', itm_id=' || l_itm_id || ', stored result differs from incoming result';
-
-      RETURN;
-
-   elsif l_current_message_uuid is not null then
-      /*
-       * Item уже обработан другим сообщением. Политика first-wins.
-       */
-      p_res_code := cConflict;
-      p_res_info := 'Item already finalized by another message: itm_id='
-                     || l_itm_id
-                     || ', stored_message_uuid='
-                     || l_current_message_uuid
-                     || ', incoming_message_uuid='
-                     || p_message_uuid;
+      p_ret_code := cConflict;
+      p_ret_info := 'Item already finalized by another message...';
+      
       RETURN;
 
    END IF;
+
 
    /*
     * Первое применение результата.
@@ -1184,7 +1185,8 @@ BEGIN
       SET ires_code    = p_ires_code,
           tres_time    = p_tres_time,
           cres_info    = p_cres_info,
-          message_uuid = p_message_uuid
+          message_uuid = p_message_uuid,
+          response_code= p_response_code
     WHERE itm_id = l_itm_id
       AND message_uuid IS NULL;
 
@@ -1202,8 +1204,14 @@ BEGIN
          l_updated_count;
    END IF;
 
-   p_res_code := ret_Ok;
-   p_res_info := 'Item applied: itm_id=' || l_itm_id || ', req_id=' || l_req_id || ', message_uuid=' || p_message_uuid;
+   /* unpak payload */
+   if p_ires_code <> -1 then
+      null;
+      -- STUB
+   end if;
+
+   p_ret_code := ret_Ok;
+   p_ret_info := 'Item applied: itm_id=' || l_itm_id || ', req_id=' || l_req_id || ', message_uuid=' || p_message_uuid;
 
 END;
 $procedure$

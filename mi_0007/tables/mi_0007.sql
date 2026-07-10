@@ -4,17 +4,23 @@
 -- Описание   : Запросы на валидность паспортов РФ
 --
 CREATE TABLE IF NOT EXISTS xxi.mi_0007 (
--- +---------------------------------------------------------------------------
+-- +------------------------------------------------------------------------------------
 -- |   column      |  type      |   null  | default 
--- +---------------------------------------------------------------------------
-      itm_id        numeric(12)   NOT NULL  DEFAULT nextval('xxi.s_mi_item'::regclass),
-      external_uuid uuid          NOT NULL  DEFAULT gen_random_uuid(),    
-	   req_id        numeric(12)   NOT NULL,
-      person_id     numeric(12)   NOT NULL, 
-      created_at    timestamp     NOT NULL  DEFAULT current_timestamp,
-      ires_code     numeric(3)        NULL,  
-      tres_time     timestamp         NULL,  
+-- +------------------------------------------------------------------------------------
+      itm_id        numeric(12)   NOT NULL   DEFAULT nextval('xxi.s_mi_item'::regclass),
+      external_uuid uuid          NOT NULL   DEFAULT uuidv7(),
+      req_id        numeric(12)   NOT NULL,
+      
+      person_id     numeric(12)   NOT NULL,
+      
+      created_at    timestamp     NOT NULL   DEFAULT current_timestamp,
+   -- бизнес ответ на запрос
+      message_uuid  uuid              NULL,
+      ires_code     numeric(3)        NULL,
+      tres_time     timestamp         NULL,
       cres_info     text              NULL,
+      -- код обработки при ошибке
+      response_code varchar(100)      NULL
 
 -- constraints
 -- PK
@@ -49,7 +55,7 @@ COMMENT ON COLUMN xxi.mi_0007.person_id is
    'ID физ лица /mi_person/'
 ;
 COMMENT ON COLUMN xxi.mi_0007.ires_code is 
-   'Код результата из СМЭВ'
+   'Код результата из СМЭВ или -1 в случае ошибки при обработке элемента'
 ;
 COMMENT ON COLUMN xxi.mi_0007.cres_info is 
    'Информация о результате'
