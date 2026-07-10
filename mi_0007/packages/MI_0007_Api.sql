@@ -1031,11 +1031,9 @@ CREATE PROCEDURE apply_Item_Result (
    in p_message_uuid  uuid,
    in p_item_uuid     uuid,
 
-   in p_ires_code     numeric,
-   in p_cres_info     text,
-   in p_tres_time     timestamptz,
-
-   in p_response_code varchar,
+   in p_response_code text,
+   in p_response_info numeric,
+   in p_response_time timestamptz,
 
    in p_payload_text  text,
 
@@ -1061,17 +1059,26 @@ DECLARE
 
    l_payload               jsonb;
 
+   l_ires_code             numeric;
+   l_cres_info             text;
+
+   l_doc_status            numeric;
+   l_invalidity_reason     text;
+   l_invalidity_since      date;
+   l_issue_date            date;
+   l_issuer_code           varchar;   
+
 BEGIN
 
    p_ret_code := ret_FAIL;
    p_ret_info := 'Unhandled error in ' || cFunc;
 
    call MI_logger.enter_f (
-      p_logger_name  => cLogger, 
-      p_function_name=> cFunc,
-      p_message_text => p_cres_info,
-      p_parameters   => 'p_ires_code=' || p_ires_code || ', p_item_uuid = ' || p_item_uuid,
-      p_itm_Id       => null
+      p_logger_name   => cLogger, 
+      p_function_name => cFunc,
+      p_message_text  => p_cres_info,
+      p_parameters    => 'p_ires_code=' || p_ires_code || ', p_item_uuid = ' || p_item_uuid,
+      p_itm_Id        => null
    );
 
    /*
@@ -1092,41 +1099,27 @@ BEGIN
       RETURN;
    END IF;
 
-   IF p_ires_code IS NULL THEN
-      p_ret_info := 'p_ires_code is null';
-      RETURN;
-   END IF;
-
-   IF p_ires_code = -1 AND p_response_code IS NULL THEN
-      p_ret_info := 'p_response_code is null for failed item';
-      RETURN;
-   END IF;
-
-   IF p_ires_code <> -1 AND p_response_code IS NOT NULL THEN
-      p_ret_info := 'p_response_code must be null for successful item';
-      RETURN;
-   END IF;   
-
-   IF p_ires_code <> -1 AND p_payload_text IS NULL THEN
-      p_ret_info := 'p_payload_text is null for successful item';
-      RETURN;
-   END IF;
-
-   IF p_tres_time IS NULL THEN
+   IF p_response_time IS NULL THEN
       p_ret_info := 'p_tres_time is null';
       RETURN;
    END IF;   
 
-   IF p_ires_code <> -1 THEN
+   IF p_response_code is null THEN
+
+      IF p_payload_text IS NULL THEN
+         p_ret_info := 'p_payload_text is null for successful item';
+         RETURN;
+      END IF;
+
+
       BEGIN
          l_payload := p_payload_text::jsonb;
       EXCEPTION
          WHEN OTHERS THEN
-            RAISE EXCEPTION
-               'Invalid JSON payload for mi_0007 item: request_uuid=%, item_uuid=%',
-               p_request_uuid,
-               p_item_uuid;
+              RAISE EXCEPTION
+                'Invalid JSON payload for mi_0007 item: request_uuid=%, item_uuid=%', p_request_uuid, p_item_uuid;
       END;
+
    END IF;
 
    /*
@@ -1182,6 +1175,41 @@ BEGIN
 
    END IF;
 
+   /* unpak payload */
+   IF p_response_code IS NULL THEN
+
+      l_doc_status := NULLIF  ( l_payload ->> 'docStatus', '')::numeric;
+      l_ires_code  := l_doc_status;
+
+      IF l_ires_code IS NULL THEN
+         p_ret_info := '"docStatus" is null in successful payload';
+         RETURN;
+      END IF;
+      l_cres_info         := COALESCE( NULLIF(l_payload ->> 'comment', ''), 'docStatus=' || l_ires_code );
+      l_invalidity_reason := NULLIF(l_payload ->> 'invalidityReason', '');
+      l_invalidity_since  := NULLIF(l_payload ->> 'invaliditySince', '')::date;
+      l_issue_date        := NULLIF(l_payload ->> 'issueDate', '')::date;
+      l_issuer_code       := NULLIF(l_payload ->> 'issuerCode', '');
+      l_cres_info         := COALESCE(NULLIF(l_payload ->> 'comment', ''), 'docStatus=' || l_doc_status);
+
+      -- save payload into ect table
+
+   ELSE
+
+      IF p_payload_text IS NOT NULL THEN
+         p_ret_info := 'p_payload_text must be null for failed item';
+         RETURN;
+      END IF;
+
+      IF p_response_info IS NULL THEN
+         p_ret_info := 'p_response_info is null for failed item';
+         RETURN;
+      END IF;
+
+      l_ires_code := -1;
+      l_cres_info := p_response_info;
+
+   END IF;
 
    /*
     * Первое применение результата.
@@ -1189,9 +1217,9 @@ BEGIN
    UPDATE xxi.mi_0007
       SET ires_code    = p_ires_code,
           tres_time    = p_tres_time,
-          cres_info    = p_cres_info,
           message_uuid = p_message_uuid,
-          response_code= p_response_code
+          cres_info    = p_response_Info,
+          errore_code  = p_response_code
     WHERE itm_id = l_itm_id
       AND message_uuid IS NULL;
 
@@ -1199,7 +1227,7 @@ BEGIN
 
    /*
     * Строка заблокирована FOR UPDATE, поэтому отсутствие
-    * обновления означает неожиданную проблему состояния.
+    * обновления означает неожиданную проблему.
     * Не превращаем её в бизнес-ответ, пусть XXL сделает retry.
     */
    IF l_updated_count <> 1 THEN
@@ -1208,12 +1236,6 @@ BEGIN
          l_itm_id,
          l_updated_count;
    END IF;
-
-   /* unpak payload */
-   if p_ires_code <> -1 then
-      null;
-      -- STUB
-   end if;
 
    p_ret_code := ret_Ok;
    p_ret_info := 'Item applied: itm_id=' || l_itm_id || ', req_id=' || l_req_id || ', message_uuid=' || p_message_uuid;

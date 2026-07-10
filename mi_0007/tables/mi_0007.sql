@@ -16,11 +16,12 @@ CREATE TABLE IF NOT EXISTS xxi.mi_0007 (
       created_at    timestamp     NOT NULL   DEFAULT current_timestamp,
    -- бизнес ответ на запрос
       message_uuid  uuid              NULL,
+      
       ires_code     numeric(3)        NULL,
       tres_time     timestamp         NULL,
       cres_info     text              NULL,
       -- код обработки при ошибке
-      response_code varchar(100)      NULL
+      error_code    varchar(100)      NULL
 
 -- constraints
 -- PK
