@@ -1112,6 +1112,11 @@ BEGIN
       RETURN;
    END IF;
 
+   IF p_tres_time IS NULL THEN
+      p_ret_info := 'p_tres_time is null';
+      RETURN;
+   END IF;   
+
    IF p_ires_code <> -1 THEN
       BEGIN
          l_payload := p_payload_text::jsonb;
@@ -1144,7 +1149,7 @@ BEGIN
 
    EXCEPTION
       WHEN NO_DATA_FOUND THEN
-         p_res_code := ret_Fail;
+         p_ret_code := ret_Fail;
          p_ret_info := 'Item not found: request_external_uuid=' || p_request_uuid || ', item_external_uuid=' || p_item_uuid;
 
          RETURN;
@@ -1154,7 +1159,7 @@ BEGIN
           * При UNIQUE на mi_0007.external_uuid этого быть
           * не должно. Считаем нарушением данных.
           */
-         RAISE EXCEPTION 'More than one item found: request_external_uuid=%, item_external_uuid=%', p_request_uuid, p_item_external_uuid;
+         RAISE EXCEPTION 'More than one item found: request_external_uuid=%, item_external_uuid=%', p_request_uuid, p_item_uuid;
    END;
 
    /*
@@ -1220,7 +1225,6 @@ $procedure$
 /*
    helper:
    проставить результат item и статус request
-*/
 CREATE PROCEDURE complete_Request (
    in p_itm_id         NUMERIC,
    in p_req_id         NUMERIC,
@@ -1250,6 +1254,7 @@ BEGIN
    END IF;
 END;
 $procedure$
+*/
 
 /* end_Of_Package */
 ;
