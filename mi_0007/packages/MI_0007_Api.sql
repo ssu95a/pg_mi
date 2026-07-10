@@ -1031,8 +1031,8 @@ CREATE PROCEDURE apply_Item_Result (
    in p_message_uuid  uuid,
    in p_item_uuid     uuid,
 
-   in p_response_code text,
-   in p_response_info numeric,
+   in p_response_code varchar,
+   in p_response_info text,
    in p_response_time timestamptz,
 
    in p_payload_text  text,
@@ -1073,12 +1073,12 @@ BEGIN
    p_ret_code := ret_FAIL;
    p_ret_info := 'Unhandled error in ' || cFunc;
 
-   call MI_logger.enter_f (
-      p_logger_name   => cLogger, 
+   CALL MI_logger.enter_f (
+      p_logger_name   => cLogger,
       p_function_name => cFunc,
-      p_message_text  => p_cres_info,
-      p_parameters    => 'p_ires_code=' || p_ires_code || ', p_item_uuid = ' || p_item_uuid,
-      p_itm_Id        => null
+      p_message_text  => p_response_info,
+      p_parameters    => 'p_response_code=' || p_response_code || ', p_item_uuid=' || p_item_uuid || ', p_response_time=' || p_response_time,
+      p_itm_Id        => NULL
    );
 
    /*
@@ -1100,7 +1100,7 @@ BEGIN
    END IF;
 
    IF p_response_time IS NULL THEN
-      p_ret_info := 'p_tres_time is null';
+      p_ret_info := 'p_response_time is null';
       RETURN;
    END IF;   
 
@@ -1159,6 +1159,7 @@ BEGIN
     * Item уже был финализирован.
     */
    IF l_current_message_uuid IS NOT NULL THEN
+
       IF l_current_message_uuid = p_message_uuid THEN
          
          p_ret_code := cAlreadyApplied;
@@ -1212,14 +1213,14 @@ BEGIN
    END IF;
 
    /*
-    * Первое применение результата.
-    */
+   * Применение результата в таблицу элемента.
+   */
    UPDATE xxi.mi_0007
-      SET ires_code    = p_ires_code,
-          tres_time    = p_tres_time,
+      SET ires_code    = l_ires_code,
+          tres_time    = p_response_time,
           message_uuid = p_message_uuid,
-          cres_info    = p_response_Info,
-          errore_code  = p_response_code
+          cres_info    = l_cres_info,
+          error_code   = p_response_code
     WHERE itm_id = l_itm_id
       AND message_uuid IS NULL;
 
