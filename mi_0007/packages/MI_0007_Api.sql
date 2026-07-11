@@ -1247,7 +1247,7 @@ BEGIN
       RETURN;
    END IF;
 
-   p_ret_code := c_ret_ok;
+   p_ret_code := ret_ok;
    p_ret_info := 'applied';
 
 END;
