@@ -1174,16 +1174,11 @@ BEGIN
                   ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
                   ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
             
-                  p_ret_info := TS.WhenOthersError( cFunc, ex );
+                  p_ret_info := 'p_payload_text is not valid JSON: ' || TS.WhenOthersError( cFunc, ex );
          END; 
 
-         WHEN others THEN
-            GET STACKED DIAGNOSTICS
-                p_ret_info = MESSAGE_TEXT;
+         RETURN;
 
-            p_ret_info := 'p_payload_text is not valid JSON: ' || p_ret_info;
-
-            RETURN;
       END;
 
       BEGIN
