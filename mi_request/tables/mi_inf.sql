@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS xxi.mi_inf
       inf_id          numeric(6)   NOT NULL,
       wsp_id          numeric(3)   NOT NULL,
 
-      initiator_cd    numeric(1)   NOT NULL    Default -1,
+      initiator_cd    numeric(1)   NOT NULL   Default -1,
       
       name_inf        varchar(250) NOT NULL,
       name_official   varchar(500) NOT NULL,

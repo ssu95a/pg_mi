@@ -1027,62 +1027,48 @@ $procedure$
 */
 CREATE PROCEDURE apply_Item_Result (
 
-   in p_request_uuid  uuid,
-   in p_message_uuid  uuid,
-   in p_item_uuid     uuid,
+   in  p_request_uuid      uuid,
+   in  p_message_uuid      uuid,
+   in  p_item_uuid         uuid,
 
-   in p_response_code varchar,
-   in p_response_info text,
-   in p_response_time timestamptz,
+   in  p_response_kind     int4,
 
-   in p_payload_text  text,
+   in  p_response_code     varchar,
+   in  p_response_info     varchar,
+   in  p_response_details  text,
+   in  p_response_time     timestamptz,
 
-  out p_ret_code      int4,
-  out p_ret_info      varchar
+   in  p_payload_text      text,
+
+  out p_ret_code          int4,
+  out p_ret_info          varchar
 )
 AS
 $procedure$
-   #package
 DECLARE
 
    cFunc constant varchar := cPkg_Name || '.apply_Item_Result';
 
-   cAlreadyApplied constant int4 :=  1;
-   cConflict       constant int4 := -2;
+   cAlready_applied constant int4 := 1;
 
-   l_itm_id                numeric;
-   l_req_id                numeric;
+   l_itm_id              numeric;
+   l_current_message_uuid uuid;
 
-   l_current_message_uuid  uuid;
+   l_payload             jsonb;
 
-   l_updated_count         int4;
+   l_doc_status          numeric;
+   l_ires_code           numeric;
+   l_cres_info           text;
 
-   l_payload               jsonb;
-
-   l_ires_code             numeric;
-   l_cres_info             text;
-
-   l_doc_status            numeric;
-   l_invalidity_reason     text;
-   l_invalidity_since      date;
-   l_issue_date            date;
-   l_issuer_code           varchar;   
+   l_row_count           int4;
 
 BEGIN
 
-   p_ret_code := ret_FAIL;
-   p_ret_info := 'Unhandled error in ' || cFunc;
-
-   CALL MI_logger.enter_f (
-      p_logger_name   => cLogger,
-      p_function_name => cFunc,
-      p_message_text  => p_response_info,
-      p_parameters    => 'p_response_code=' || p_response_code || ', p_item_uuid=' || p_item_uuid || ', p_response_time=' || p_response_time,
-      p_itm_Id        => NULL
-   );
+   p_ret_code := ret_Fail;
+   p_ret_info := NULL;
 
    /*
-    * Проверка обязательных идентификаторов.
+    * Базовая validation.
     */
    IF p_request_uuid IS NULL THEN
       p_ret_info := 'p_request_uuid is null';
@@ -1099,147 +1085,175 @@ BEGIN
       RETURN;
    END IF;
 
+   IF p_response_kind IS NULL THEN
+      p_ret_info := 'p_response_kind is null';
+      RETURN;
+   END IF;
+
    IF p_response_time IS NULL THEN
       p_ret_info := 'p_response_time is null';
       RETURN;
-   END IF;   
-
-   IF p_response_code is null THEN
-
-      IF p_payload_text IS NULL THEN
-         p_ret_info := 'p_payload_text is null for successful item';
-         RETURN;
-      END IF;
-
-
-      BEGIN
-         l_payload := p_payload_text::jsonb;
-      EXCEPTION
-         WHEN OTHERS THEN
-              RAISE EXCEPTION
-                'Invalid JSON payload for mi_0007 item: request_uuid=%, item_uuid=%', p_request_uuid, p_item_uuid;
-      END;
-
    END IF;
 
+   if p_response_kind not in (ret_OK,ret_Fail) then
+      p_ret_info := 'unsupported p_response_kind: ' || p_response_kind;
+      RETURN;
+   end if;   
+
    /*
-    * Находим item внутри конкретного request и сразу блокируем его до завершения транзакции.
+    * Находим item исходного request.
+    *
     */
    BEGIN
       SELECT i.itm_id,
-             i.req_id,
              i.message_uuid
-        INTO STRICT
-             l_itm_id,
-             l_req_id,
+        INTO l_itm_id,
              l_current_message_uuid
-        FROM xxi.mi_0007 i
-        JOIN xxi.mi_req r ON r.req_id = i.req_id
+        FROM xxi.mi_req r
+        JOIN xxi.mi_0007 i
+          ON i.req_id = r.req_id
        WHERE r.external_uuid = p_request_uuid
          AND i.external_uuid = p_item_uuid
-         FOR 
-             UPDATE OF i;
+       FOR UPDATE OF i;
 
    EXCEPTION
-      WHEN NO_DATA_FOUND THEN
-         p_ret_code := ret_Fail;
-         p_ret_info := 'Item not found: request_external_uuid=' || p_request_uuid || ', item_external_uuid=' || p_item_uuid;
+      WHEN no_data_found THEN
+         p_ret_info := 'mi_0007 item not found: request_uuid=' || p_request_uuid || ', item_uuid=' || p_item_uuid;
 
          RETURN;
 
       WHEN too_many_rows THEN
-         /*
-          * При UNIQUE на mi_0007.external_uuid этого быть
-          * не должно. Считаем нарушением данных.
-          */
-         RAISE EXCEPTION 'More than one item found: request_external_uuid=%, item_external_uuid=%', p_request_uuid, p_item_uuid;
+         p_ret_info := 'more than one mi_0007 item found: request_uuid=' || p_request_uuid || ', item_uuid=' || p_item_uuid;
+
+         RETURN;
    END;
 
    /*
-    * Item уже был финализирован.
+    *
+    * Тот же message_uuid уже применён -> OK, но already applied.
+    * Другой message_uuid уже применён -> конфликт, не retry.
     */
-   IF l_current_message_uuid IS NOT NULL THEN
-
+   IF l_current_message_uuid IS NOT NULL 
+   THEN
       IF l_current_message_uuid = p_message_uuid THEN
-         
-         p_ret_code := cAlreadyApplied;
-         p_ret_info := 'Item already applied...';
-         
+         p_ret_code := cAlready_applied;
+         p_ret_info := 'Item already applied';
+
          RETURN;
 
       END IF;
 
-      p_ret_code := cConflict;
-      p_ret_info := 'Item already finalized by another message...';
-      
+      p_ret_info := 'mi_0007 item already applied by another message: current_message_uuid=' || l_current_message_uuid || ', new_message_uuid=' || p_message_uuid;
       RETURN;
 
    END IF;
 
-   /* unpak payload */
-   IF p_response_code IS NULL THEN
+   /*
+    * Нормализованный OK.
+    */
+   IF p_response_kind = ret_OK THEN
 
-      l_doc_status := NULLIF  ( l_payload ->> 'docStatus', '')::numeric;
-      l_ires_code  := l_doc_status;
+      IF p_payload_text IS NULL OR btrim(p_payload_text) = '' THEN
+         p_ret_info := 'p_payload_text is null or empty for successful item';
+         RETURN;
 
-      IF l_ires_code IS NULL THEN
-         p_ret_info := '"docStatus" is null in successful payload';
+      END IF;
+
+      BEGIN
+         l_payload := p_payload_text::jsonb;
+      EXCEPTION
+
+         WHEN OTHERS THEN
+            DECLARE
+               ex TS.T_StackedDiagnostics;
+            BEGIN
+              GET STACKED DIAGNOSTICS                       
+                  ex.RETURNED_SQLSTATE    = RETURNED_SQLSTATE,  
+                  ex.MESSAGE_TEXT         = MESSAGE_TEXT,
+                  ex.PG_EXCEPTION_DETAIL  = PG_EXCEPTION_DETAIL,
+                  ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
+                  ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
+            
+                  p_ret_info := TS.WhenOthersError( cFunc, ex );
+         END; 
+
+         WHEN others THEN
+            GET STACKED DIAGNOSTICS
+                p_ret_info = MESSAGE_TEXT;
+
+            p_ret_info := 'p_payload_text is not valid JSON: ' || p_ret_info;
+
+            RETURN;
+      END;
+
+      BEGIN
+         l_doc_status := NULLIF(l_payload ->> 'docStatus', '')::numeric;
+      EXCEPTION
+         WHEN others THEN
+            p_ret_info := 'docStatus is not numeric in successful payload';
+            RETURN;
+      END;
+
+      IF l_doc_status IS NULL THEN
+         p_ret_info := 'docStatus is null in successful payload';
          RETURN;
       END IF;
-      l_cres_info         := COALESCE( NULLIF(l_payload ->> 'comment', ''), 'docStatus=' || l_ires_code );
-      l_invalidity_reason := NULLIF(l_payload ->> 'invalidityReason', '');
-      l_invalidity_since  := NULLIF(l_payload ->> 'invaliditySince', '')::date;
-      l_issue_date        := NULLIF(l_payload ->> 'issueDate', '')::date;
-      l_issuer_code       := NULLIF(l_payload ->> 'issuerCode', '');
-      l_cres_info         := COALESCE(NULLIF(l_payload ->> 'comment', ''), 'docStatus=' || l_doc_status);
 
-      -- save payload into ect table
+      l_ires_code := l_doc_status;
 
-   ELSE
+      l_cres_info :=
+         COALESCE(
+            NULLIF(l_payload ->> 'comment', ''),
+            'docStatus=' || l_doc_status
+         );
+
+   /*
+    * Нормализованный FAIL.
+    */
+   ELSE -- p_response_kind = ret_Fail THEN
 
       IF p_payload_text IS NOT NULL THEN
          p_ret_info := 'p_payload_text must be null for failed item';
          RETURN;
+
       END IF;
 
-      IF p_response_info IS NULL THEN
-         p_ret_info := 'p_response_info is null for failed item';
+      IF p_response_code IS NULL OR btrim(p_response_code) = '' THEN
+         p_ret_info := 'p_response_code is null or empty for failed item';
          RETURN;
+
       END IF;
 
-      l_ires_code := -1;
-      l_cres_info := p_response_info;
+      l_ires_code := ret_Fail;
+
+      l_cres_info := COALESCE( NULLIF(p_response_info, ''), NULLIF(p_response_details, ''), p_response_code );
 
    END IF;
 
    /*
-   * Применение результата в таблицу элемента.
-   */
+    * p_ret_code = 0 даже для p_response_kind = -1,
+    * если отрицательный outcome успешно сохранён в XXI.
+    */
    UPDATE xxi.mi_0007
       SET ires_code    = l_ires_code,
           tres_time    = p_response_time,
           message_uuid = p_message_uuid,
           cres_info    = l_cres_info,
-          error_code   = p_response_code
-    WHERE itm_id = l_itm_id
+          error_code   = CASE WHEN p_response_kind = ret_Fail THEN p_response_code ELSE NULL END
+    WHERE 
+          itm_id = l_itm_id
       AND message_uuid IS NULL;
 
-   GET DIAGNOSTICS l_updated_count = ROW_COUNT;
+   GET DIAGNOSTICS l_row_count = ROW_COUNT;
 
-   /*
-    * Строка заблокирована FOR UPDATE, поэтому отсутствие
-    * обновления означает неожиданную проблему.
-    * Не превращаем её в бизнес-ответ, пусть XXL сделает retry.
-    */
-   IF l_updated_count <> 1 THEN
-      RAISE EXCEPTION
-         'Unexpected item update count: itm_id=%, updated_count=%',
-         l_itm_id,
-         l_updated_count;
+   IF l_row_count <> 1 THEN
+      p_ret_info :=
+         'mi_0007 item outcome was not applied, row_count=' || l_row_count;
+      RETURN;
    END IF;
 
-   p_ret_code := ret_Ok;
-   p_ret_info := 'Item applied: itm_id=' || l_itm_id || ', req_id=' || l_req_id || ', message_uuid=' || p_message_uuid;
+   p_ret_code := c_ret_ok;
+   p_ret_info := 'applied';
 
 END;
 $procedure$
