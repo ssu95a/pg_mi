@@ -1202,10 +1202,7 @@ BEGIN
             'docStatus=' || l_doc_status
          );
 
-   /*
-    * Нормализованный FAIL.
-    */
-   ELSE -- p_response_kind = ret_Fail THEN
+   ELSE -- kind = ret_Fail
 
       IF p_payload_text IS NOT NULL THEN
          p_ret_info := 'p_payload_text must be null for failed item';
@@ -1247,7 +1244,7 @@ BEGIN
       RETURN;
    END IF;
 
-   p_ret_code := ret_ok;
+   p_ret_code := ret_OK;
    p_ret_info := 'applied';
 
 END;

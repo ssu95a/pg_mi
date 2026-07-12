@@ -6,8 +6,8 @@ AS
 $init$
 DECLARE
    /*
-      Entry point –ª–æ–≥–∏–∫–∏ –≤–∏–¥–∞ —Å–≤–µ–¥–µ–Ω–∏–π 0001
-      –†–∞–±–æ—Ç–∞–µ—Ç –ø–æ–≤–µ—Ä—Ö:
+      Entry point ÎÓ„ËÍË ‚Ë‰‡ Ò‚Â‰ÂÌËÈ 0001
+      –‡·ÓÚ‡ÂÚ ÔÓ‚Âı:
          - mi_req
          - xxi.mi_0001
          - xxi.v_mi_0001_req
@@ -32,7 +32,7 @@ END;
 $init$
 
 
-/* –í–µ—Ä—Å–∏—è */
+/* ¬ÂÒËˇ */
 CREATE FUNCTION get_Version()
    RETURNS 
       varchar
@@ -48,8 +48,8 @@ $function$
 
 
 /*
-   –°–æ–∑–¥–∞—Ç—å request –¥–ª—è 0001.
-   Wrap –ø–æ–≤–µ—Ä—Ö —Ñ-—Ü–∏–∏ –∏–∑ mi_request_Api
+   —ÓÁ‰‡Ú¸ request ‰Îˇ 0001.
+   Wrap ÔÓ‚Âı Ù-ˆËË ËÁ mi_request_Api
 */
 CREATE FUNCTION create_Request ( 
    in p_inf_Id NUMERIC DEFAULT 12::NUMERIC 
@@ -67,7 +67,7 @@ $function$
 
 
 /*
-   –°–æ–∑–¥–∞—Ç—å item 0001
+   —ÓÁ‰‡Ú¸ item 0001
 */
 CREATE FUNCTION create_Item (
    in p_req_id    numeric,
@@ -116,7 +116,7 @@ $function$
 
 
 /*
-   –í—ã–≤–æ–¥ –≤ –ª–æ–≥ –∏–Ω—Ñ—ã –æ –ø–æ–¥–≥–æ—Ç–æ–≤–∫–µ –¥–∞–Ω–Ω—ã—Ö –æ –∫–ª–∏–µ–Ω—Ç–∞—Ö
+   ¬˚‚Ó‰ ‚ ÎÓ„ ËÌÙ˚ Ó ÔÓ‰„ÓÚÓ‚ÍÂ ‰‡ÌÌ˚ı Ó ÍÎËÂÌÚ‡ı
 */
 create procedure log_Auto (
    in p_message   varchar,
@@ -141,7 +141,7 @@ $procedure$
 
 
 /* 
-   –ü–æ—Å—Ç—Ä–æ–∏—Ç—å json-person –∏–∑ –ø–∞—Ä–∞–º–µ—Ç—Ä–æ–≤
+   œÓÒÚÓËÚ¸ json-person ËÁ Ô‡‡ÏÂÚÓ‚
 */
 CREATE FUNCTION build_Json_Person (
    in p_cus xxi.v_mi_0001_ca
@@ -178,7 +178,7 @@ $function$
 
 
 /*
-   –ü—Ä–æ–≤–µ—Ä–∫–∞ –¥–∞–Ω–Ω—ã—Ö –∫–ª–∏–µ–Ω—Ç–∞ –¥–ª—è –º–∞—Å—Å–æ–≤–æ–π –æ—Ç–ø—Ä–∞–≤–∫–∏
+   œÓ‚ÂÍ‡ ‰‡ÌÌ˚ı ÍÎËÂÌÚ‡ ‰Îˇ Ï‡ÒÒÓ‚ÓÈ ÓÚÔ‡‚ÍË
 */
 create procedure check_4_Prepare (
     in p_cus              xxi.v_mi_0001_ca,
@@ -227,30 +227,30 @@ begin
       l_nCount := l_nCount + 1;
 
       IF r.status_Cd = 0 then
-         -- —É–∂–µ –µ—Å—Ç—å –ø–æ–¥–≥–æ—Ç–æ–≤–ª–µ–Ω–Ω—ã–π –∑–∞–ø—Ä–æ—Å –ø–æ –¥–∞–Ω–Ω–æ–º—É –∫–ª–∏–µ–Ω—Ç—É, –Ω–æ –µ—â–µ –Ω–µ –ø—Ä–∏–Ω—è—Ç –≤ –æ–±—Ä–∞–±–æ—Ç–∫—É —Å–ª—É–∂–±–æ–π –æ—Ç–ø—Ä–∞–≤–∫–∏
+         -- ÛÊÂ ÂÒÚ¸ ÔÓ‰„ÓÚÓ‚ÎÂÌÌ˚È Á‡ÔÓÒ ÔÓ ‰‡ÌÌÓÏÛ ÍÎËÂÌÚÛ, ÌÓ Â˘Â ÌÂ ÔËÌˇÚ ‚ Ó·‡·ÓÚÍÛ ÒÎÛÊ·ÓÈ ÓÚÔ‡‚ÍË
          l_doCreate    := FALSE;
-         p_result_Info := '–î–ª—è –∫–ª–∏–µ–Ω—Ç–∞ ' || p_cus.icusnum || ' —É–∂–µ –µ—Å—Ç—å –ø–æ–¥–≥–æ—Ç–æ–≤–ª–µ–Ω–Ω—ã–π –∑–∞–ø—Ä–æ—Å –ø–æ –¥–∞–Ω–Ω–æ–º—É –∫–ª–∏–µ–Ω—Ç—É, –Ω–æ –µ—â–µ –Ω–µ –ø—Ä–∏–Ω—è—Ç –≤ –æ–±—Ä–∞–±–æ—Ç–∫—É —Å–ª—É–∂–±–æ–π –æ—Ç–ø—Ä–∞–≤–∫–∏';   
+         p_result_Info := 'ƒÎˇ ÍÎËÂÌÚ‡ ' || p_cus.icusnum || ' ÛÊÂ ÂÒÚ¸ ÔÓ‰„ÓÚÓ‚ÎÂÌÌ˚È Á‡ÔÓÒ ÔÓ ‰‡ÌÌÓÏÛ ÍÎËÂÌÚÛ, ÌÓ Â˘Â ÌÂ ÔËÌˇÚ ‚ Ó·‡·ÓÚÍÛ ÒÎÛÊ·ÓÈ ÓÚÔ‡‚ÍË';   
 
       elsif r.status_Cd = 1 AND r.iRes_Code IS NULL then
-         -- –µ—Å—Ç—å —É—Å–ø–µ—à–Ω–æ –≤—ã–ø–æ–ª–Ω–µ–Ω–Ω—ã–π –∑–∞–ø—Ä–æ—Å, –Ω–æ –Ω–µ –ø–µ—Ä–µ–Ω–µ—Å–µ–Ω –≤ –ò–ù–ù –≤ –∫–∞—Ç–∞–ª–æ–≥ –∫–ª–∏–µ–Ω—Ç–æ–≤
+         -- ÂÒÚ¸ ÛÒÔÂ¯ÌÓ ‚˚ÔÓÎÌÂÌÌ˚È Á‡ÔÓÒ, ÌÓ ÌÂ ÔÂÂÌÂÒÂÌ ‚ »ÕÕ ‚ Í‡Ú‡ÎÓ„ ÍÎËÂÌÚÓ‚
          l_doCreate    := FALSE;
-         p_result_Info := '–î–ª—è –∫–ª–∏–µ–Ω—Ç–∞ ' || p_cus.icusnum || ' –µ—Å—Ç—å —É—Å–ø–µ—à–Ω–æ –≤—ã–ø–æ–ª–Ω–µ–Ω–Ω—ã–π –∑–∞–ø—Ä–æ—Å, –Ω–æ –Ω–µ –ø–µ—Ä–µ–Ω–µ—Å–µ–Ω –≤ –ò–ù–ù –≤ –∫–∞—Ç–∞–ª–æ–≥ –∫–ª–∏–µ–Ω—Ç–æ–≤';
+         p_result_Info := 'ƒÎˇ ÍÎËÂÌÚ‡ ' || p_cus.icusnum || ' ÂÒÚ¸ ÛÒÔÂ¯ÌÓ ‚˚ÔÓÎÌÂÌÌ˚È Á‡ÔÓÒ, ÌÓ ÌÂ ÔÂÂÌÂÒÂÌ ‚ »ÕÕ ‚ Í‡Ú‡ÎÓ„ ÍÎËÂÌÚÓ‚';
 
       elsif r.status_Cd = 1 AND r.ires_code = 1 then
          
          if not p_handle_Not_Found then
 
             l_doCreate    := FALSE;
-            p_result_Info := '–î–ª—è –∫–ª–∏–µ–Ω—Ç–∞ ' || p_cus.icusnum || ' –µ—Å—Ç—å –∑–∞–ø—Ä–æ—Å —Å–æ —Å—Ç–∞—Ç—É—Å–æ–º "–°–≤–µ–¥–µ–Ω–∏—è –Ω–µ –Ω–∞–π–¥–µ–Ω—ã"';
+            p_result_Info := 'ƒÎˇ ÍÎËÂÌÚ‡ ' || p_cus.icusnum || ' ÂÒÚ¸ Á‡ÔÓÒ ÒÓ ÒÚ‡ÚÛÒÓÏ "—‚Â‰ÂÌËˇ ÌÂ Ì‡È‰ÂÌ˚"';
 
          end if;      
             
       elsif r.status_Cd IN ( 2, 3 ) then
-         -- –µ—Å—Ç—å –∑–∞–ø—Ä–æ—Å –≤ –æ–±—Ä–∞–±–æ—Ç–∫–µ, –Ω–æ –µ—Å–ª–∏ –æ–Ω –¥–æ–ª–≥–æ –≤–∏—Å–∏—Ç, —Ç–æ —Ñ–æ—Ä–º–∏—Ä—É–µ–º –Ω–æ–≤—ã–π
+         -- ÂÒÚ¸ Á‡ÔÓÒ ‚ Ó·‡·ÓÚÍÂ, ÌÓ ÂÒÎË ÓÌ ‰ÓÎ„Ó ‚ËÒËÚ, ÚÓ ÙÓÏËÛÂÏ ÌÓ‚˚È
          if ( round( current_timestamp - r.created_At, 0 ) * 24 ) > p_wait_Hour_Range then
 
             call MI_0001_Api.log_Auto (  
-               '–î–ª—è –∫–ª–∏–µ–Ω—Ç–∞ ' || p_cus.icusnum || ' —É–¥–∞–ª—è–µ–º –ø–æ–¥–≤–∏—Å—à–∏–π –∑–∞–ø—Ä–æ—Å', r.person_Id, p_cus.icusnum
+               'ƒÎˇ ÍÎËÂÌÚ‡ ' || p_cus.icusnum || ' Û‰‡ÎˇÂÏ ÔÓ‰‚ËÒ¯ËÈ Á‡ÔÓÒ', r.person_Id, p_cus.icusnum
             );
 
             p_ids4Remove := array_append(p_ids4Remove, r.itm_Id );
@@ -262,7 +262,7 @@ begin
       elsif r.status_Cd = -1 then
             
             call MI_0001_Api.log_Auto (  
-               '–î–ª—è –∫–ª–∏–µ–Ω—Ç–∞ ' || p_cus.icusnum || ' —É–¥–∞–ª—è–µ–º –æ—à–∏–±–æ—á–Ω—ã–π –∑–∞–ø—Ä–æ—Å', r.person_Id, p_cus.icusnum
+               'ƒÎˇ ÍÎËÂÌÚ‡ ' || p_cus.icusnum || ' Û‰‡ÎˇÂÏ Ó¯Ë·Ó˜Ì˚È Á‡ÔÓÒ', r.person_Id, p_cus.icusnum
             );
 
             p_ids4Remove := array_append( p_ids4Remove, r.itm_Id );
@@ -282,26 +282,26 @@ begin
    IF l_ncount > 0 THEN
 
       call MI_0001_Api.log_Auto (  
-         '–î–ª—è –∫–ª–∏–µ–Ω—Ç–∞ ' || p_cus.icusnum || ' –±—ã–ª–æ ' || l_ncount || ' –∑–∞–ø–∏—Å–µ–π –∑–∞–ø—Ä–æ—Å–æ–≤', null::numeric, p_cus.icusnum
+         'ƒÎˇ ÍÎËÂÌÚ‡ ' || p_cus.icusnum || ' ·˚ÎÓ ' || l_ncount || ' Á‡ÔËÒÂÈ Á‡ÔÓÒÓ‚', null::numeric, p_cus.icusnum
       );
 
    END IF;
 
    IF l_doCreate THEN
-      -- –µ—Å–ª–∏ –Ω–µ –∫–æ—Ä—Ä–µ–∫—Ç–Ω—ã–µ –ò–º—è –∏–ª–∏ –§–∞–º–∏–ª–∏—è
-      -- –ø–∏—à–µ–º –≤ –ª–æ–≥ –∏ –Ω–µ –æ–±—Ä–∞–±–∞—Ç—ã–≤–∞–µ–º
+      -- ÂÒÎË ÌÂ ÍÓÂÍÚÌ˚Â »Ïˇ ËÎË ‘‡ÏËÎËˇ
+      -- ÔË¯ÂÏ ‚ ÎÓ„ Ë ÌÂ Ó·‡·‡Ú˚‚‡ÂÏ
       IF p_cus.last_name IS NULL OR p_cus.first_name IS NULL THEN
-         p_result_Info := '–£ –∫–ª–∏–µ–Ω—Ç–∞ ' || p_cus.icusnum || ' –Ω–µ –∑–∞–ø–æ–ª–Ω–µ–Ω—ã –§–∞–º–∏–ª–∏—è –∏–ª–∏ –ò–º—è';
+         p_result_Info := '” ÍÎËÂÌÚ‡ ' || p_cus.icusnum || ' ÌÂ Á‡ÔÓÎÌÂÌ˚ ‘‡ÏËÎËˇ ËÎË »Ïˇ';
          l_doCreate    := FALSE;
       END IF;
 
       IF p_cus.birth_date IS NULL THEN
-         p_result_Info :=  '–£ –∫–ª–∏–µ–Ω—Ç–∞ ' || p_cus.icusnum || ' –Ω–µ –∑–∞–ø–æ–ª–Ω–µ–Ω–∞ –î–∞—Ç–∞ —Ä–æ–∂–¥–µ–Ω–∏—è';
+         p_result_Info :=  '” ÍÎËÂÌÚ‡ ' || p_cus.icusnum || ' ÌÂ Á‡ÔÓÎÌÂÌ‡ ƒ‡Ú‡ ÓÊ‰ÂÌËˇ';
          l_doCreate    := FALSE;
       END IF;
 
       IF p_cus.doc_type_code IS NULL OR p_cus.DOC_NUM IS NULL THEN
-         p_result_Info := '–£ –∫–ª–∏–µ–Ω—Ç–∞ ' || p_cus.icusnum || ' –Ω–µ –∑–∞–ø–æ–ª–Ω–µ–Ω –í–∏–¥ –¥–æ–∫—É–º–µ–Ω—Ç–∞ –∏–ª–∏ –ù–æ–º–µ—Ä –¥–æ–∫—É–º–µ–Ω—Ç–∞';
+         p_result_Info := '” ÍÎËÂÌÚ‡ ' || p_cus.icusnum || ' ÌÂ Á‡ÔÓÎÌÂÌ ¬Ë‰ ‰ÓÍÛÏÂÌÚ‡ ËÎË ÕÓÏÂ ‰ÓÍÛÏÂÌÚ‡';
          l_doCreate    := FALSE;
       END IF;
 
@@ -326,7 +326,7 @@ $procedure$
 
 
 /* 
-   –ó–∞–ø–∏—Å—å –≤ –∑–∞–ø—Ä–æ—Å
+   «‡ÔËÒ¸ ‚ Á‡ÔÓÒ
 */
 create function create_Item (
    in p_inf_Id numeric,
@@ -369,7 +369,7 @@ BEGIN
 
       call MI_logger.info ( 
          p_logger_name  => cLogger_Auto, 
-         p_message_text => '–î–ª—è –∫–ª–∏–µ–Ω—Ç–∞ —É–¥–∞–ª–µ–Ω–æ ' || array_length( p_ids4Remove, 1) || ' —Å—Ç–∞—Ä—ã—Ö –∑–∞–ø–∏—Å–µ–π', 
+         p_message_text => 'ƒÎˇ ÍÎËÂÌÚ‡ Û‰‡ÎÂÌÓ ' || array_length( p_ids4Remove, 1) || ' ÒÚ‡˚ı Á‡ÔËÒÂÈ', 
          p_details_text => 'mi_0001.itm_id: ' || p_ids4Remove,
          p_inf_id       => p_inf_Id, 
          p_action_cd    => 'create_Item', 
@@ -385,7 +385,7 @@ $function$
 
 
 /*
-   –ê–≤—Ç–æ–º–∞—Ç–∏—á–µ—Å–∫–∏–π —Å–±–æ—Ä –∏ –ø–æ–¥–≥–æ—Ç–æ–≤–∫–∞ –∫–ª–∏–µ–Ω—Ç–æ–≤ –±–µ–∑ –ò–ù–ù –¥–ª—è –æ—Ç–ø—Ä–∞–≤–∫–∏
+   ¿‚ÚÓÏ‡ÚË˜ÂÒÍËÈ Ò·Ó Ë ÔÓ‰„ÓÚÓ‚Í‡ ÍÎËÂÌÚÓ‚ ·ÂÁ »ÕÕ ‰Îˇ ÓÚÔ‡‚ÍË
 */
 create procedure auto_Prepare( )
 as
@@ -413,7 +413,7 @@ declare
 
 begin
 
-   -- –±–ª–æ–∫–∏—Ä–æ–≤–∞–Ω–∏–µ
+   -- ·ÎÓÍËÓ‚‡ÌËÂ
    declare
       l_lock_Code int4;
       l_lock_Info varchar;
@@ -450,7 +450,7 @@ end;
 $procedure$ 
 
 
-/* –°–æ–∑–¥–∞–µ—Ç –ø–µ—Ä—Å–æ–Ω–∞–ª—å–Ω—ã–π –∑–∞–ø—Ä–æ—Å –¥–ª—è –ø–æ–ª—É—á–µ–Ω–∏—è –ò–ù–ù –¥–ª—è —Ñ–∏–∑ –ª–∏—Ü–∞ */
+/* —ÓÁ‰‡ÂÚ ÔÂÒÓÌ‡Î¸Ì˚È Á‡ÔÓÒ ‰Îˇ ÔÓÎÛ˜ÂÌËˇ »ÕÕ ‰Îˇ ÙËÁ ÎËˆ‡ */
 create procedure create_Personal_Request (
    in p_cus    xxi.v_mi_0001_ca,
   out p_req_Id numeric,
@@ -509,223 +509,112 @@ end;
 $procedure$ 
 
 
-/* –°–æ—Ö—Ä–∞–Ω–∏—Ç—å —Ä–µ–∑—É–ª—å—Ç–∞—Ç –æ–±—Ä–∞–±–æ—Ç–∫–∏ –æ–¥–Ω–æ–≥–æ item */
+/* –‡ÒÍÎ‡‰Í‡ payLoad ÔÓ Ú‡·ÎËˆ‡Ï */
+CREATE FUNCTION map_Item_Result (
+   in p_itm_Id  numeric(12),
+   in p_payload jsonb
+)
+RETURNS
+   MI_Item_Result_Api.Item_Result
+as
+$function$ 
+   #package
+declare
+
+   cFunc    varchar := cPkg_Name || '.map_Item_Result';
+
+   l_valInn varchar;
+   l_valRes numeric;
+   l_result MI_Item_Result_Api.Item_Result;
+begin
+
+   l_valRes := l_payload ->> 'TreatmentCode';
+
+   if l_valRes is null then
+      l_valInn := l_payload ->> 'PhysicalPersonINN';
+   else
+      l_result.cRes_info := 'ƒ‡ÌÌ˚Â ÌÂ Ì‡È‰ÂÌ˚';
+   end if;
+
+   update xxi.mi_0001 
+      set inn    = l_valInn
+    where itm_Id = p_itm_Id; 
+
+   l_result.iRes_Code := l_valRes;
+
+   return l_result;
+
+exception
+   WHEN OTHERS THEN
+      DECLARE
+         ex TS.T_StackedDiagnostics;
+      BEGIN
+        GET STACKED DIAGNOSTICS
+            ex.RETURNED_SQLSTATE    = RETURNED_SQLSTATE,  
+            ex.MESSAGE_TEXT         = MESSAGE_TEXT,
+            ex.PG_EXCEPTION_DETAIL  = PG_EXCEPTION_DETAIL,
+            ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
+            ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
+      
+         l_result.cRes_info := 'Error on map JSON item: ' || TS.WhenOthersError( cFunc, ex );
+         l_result.iRes_Code := ret_Fail;
+
+      END; 
+
+   return l_result;
+
+end;
+$function$
+
+
+/** */
 CREATE PROCEDURE apply_Item_Result (
-   in p_request_uuid        uuid,
-   in p_message_uuid        uuid,
-   in p_item_external_uuid  uuid,
 
-   in p_inn                 varchar,
-   in p_ires_code           numeric,
-   in p_tres_time           timestamp,
-   in p_cres_info           text,
+   in p_request_uuid      uuid,
+   in p_message_uuid      uuid,
+   in p_item_uuid         uuid,
 
-   out p_res_code           int4,
-   out p_res_info           varchar
+   in p_response_kind     int4,
+
+   in p_response_code     varchar,
+   in p_response_info     varchar,
+   in p_response_details  text,
+   in p_response_time     timestamptz,
+
+   in p_payload_text      text,
+
+   out p_ret_code         int4,
+   out p_ret_info         varchar
 )
 AS
-$procedure$
-   #package
-DECLARE
-
-   cAction_Name constant varchar := cPkg_Name || '.apply_Item_Result';
-
-   /*
-    * –ö–æ–Ω—Ç—Ä–∞–∫—Ç —Å Java:
-    *
-    *  0 = APPLIED - ret_OK
-    *  1 = ALREADY_APPLIED
-    * -1 = FAILED - ret_Failed
-    * -2 = CONFLICT
-    *
-    * –ù–µ–æ–∂–∏–¥–∞–Ω–Ω—ã–µ SQL-–æ—à–∏–±–∫–∏ –Ω–µ –ø–µ—Ä–µ—Ö–≤–∞—Ç—ã–≤–∞—é—Ç—Å—è.
-    * –û–Ω–∏ –¥–æ–ª–∂–Ω—ã –≤—ã–π—Ç–∏ –Ω–∞—Ä—É–∂—É –∏ –ø—Ä–∏–≤–µ—Å—Ç–∏ –∫ retry —Å–æ–æ–±—â–µ–Ω–∏—è.
-    */
-
-   cAlreadyApplied constant int4 :=  1;
-   cConflict       constant int4 := -2;
-
-   l_itm_id                numeric;
-   l_req_id                numeric;
-
-   l_current_message_uuid  uuid;
-   l_current_inn           varchar;
-   l_current_ires_code     numeric;
-   l_current_tres_time     timestamp;
-   l_current_cres_info     text;
-
-   l_updated_count         int4;
-
+   $procedure$
 BEGIN
 
-   p_res_code := ret_FAIL;
-   p_res_info := 'Unhandled error in ' || cAction_Name;
+   CALL
+      MI_Item_Result_Api.apply_Item_Result (
 
-   /*
-    * –ü—Ä–æ–≤–µ—Ä–∫–∞ –æ–±—è–∑–∞—Ç–µ–ª—å–Ω—ã—Ö –∏–¥–µ–Ω—Ç–∏—Ñ–∏–∫–∞—Ç–æ—Ä–æ–≤.
-    */
-   IF p_request_uuid IS NULL THEN
-      p_res_info := 'p_request_uuid is null';
-      RETURN;
-   END IF;
+         'xxi.mi_0001'::regclass,
+         'MI_0001_Api.map_Item_Result(numeric,jsonb)'::regprocedure,
 
-   IF p_message_uuid IS NULL THEN
-      p_res_info := 'p_message_uuid is null';
-      RETURN;
-   END IF;
+         p_request_uuid,
+         p_message_uuid,
+         p_item_uuid,
 
-   IF p_item_external_uuid IS NULL THEN
-      p_res_info := 'p_item_external_uuid is null';
-      RETURN;
-   END IF;
+         p_response_kind,
 
-   IF p_ires_code IS NULL THEN
-      p_res_info := 'p_ires_code is null';
-      RETURN;
-   END IF;
+         p_response_code,
+         p_response_info,
+         p_response_details,
+         p_response_time,
 
-   /*
-    * –í—Ä–µ–º—è —Ä–µ–∑—É–ª—å—Ç–∞—Ç–∞ –¥–æ–ª–∂–Ω–æ –ø—Ä–∏—Ö–æ–¥–∏—Ç—å –∏–∑ —Å–æ–æ–±—â–µ–Ω–∏—è.
-    * –ò–Ω–∞—á–µ –º–æ–∂–Ω–æ –∑–∞–ø—É—Ç–∞—Ç—å—Å—è –ø—Ä–∏ retry
-    */
-   IF p_tres_time IS NULL THEN
-      p_res_info := 'p_tres_time is null';
-      RETURN;
-   END IF;
+         p_payload_text,
 
-   /*
-    * –ù–∞—Ö–æ–¥–∏–º item –≤–Ω—É—Ç—Ä–∏ –∫–æ–Ω–∫—Ä–µ—Ç–Ω–æ–≥–æ request –∏ —Å—Ä–∞–∑—É –±–ª–æ–∫–∏—Ä—É–µ–º –µ–≥–æ –¥–æ –∑–∞–≤–µ—Ä—à–µ–Ω–∏—è —Ç—Ä–∞–Ω–∑–∞–∫—Ü–∏–∏.
-    */
-   BEGIN
-      SELECT i.itm_id,
-             i.req_id,
-             i.message_uuid,
-             i.inn,
-             i.ires_code,
-             i.tres_time,
-             i.cres_info
-        INTO STRICT
-             l_itm_id,
-             l_req_id,
-             l_current_message_uuid,
-             l_current_inn,
-             l_current_ires_code,
-             l_current_tres_time,
-             l_current_cres_info
-        FROM xxi.mi_0001 i
-        JOIN xxi.mi_req r
-          ON r.req_id = i.req_id
-       WHERE r.external_uuid = p_request_uuid
-         AND i.external_uuid = p_item_external_uuid
-         FOR UPDATE OF i;
-
-   EXCEPTION
-      WHEN no_data_found THEN
-         p_res_code := ret_Fail;
-         p_res_info := 'Item not found: request_external_uuid=' || p_request_uuid || ', item_external_uuid=' || p_item_external_uuid;
-
-         RETURN;
-
-      WHEN too_many_rows THEN
-         /*
-          * –ü—Ä–∏ UNIQUE –Ω–∞ mi_0001.external_uuid —ç—Ç–æ–≥–æ –±—ã—Ç—å
-          * –Ω–µ –¥–æ–ª–∂–Ω–æ. –°—á–∏—Ç–∞–µ–º –Ω–∞—Ä—É—à–µ–Ω–∏–µ–º –¥–∞–Ω–Ω—ã—Ö.
-          */
-         RAISE EXCEPTION
-            'More than one item found: request_external_uuid=%, item_external_uuid=%', p_request_uuid, p_item_external_uuid;
-   END;
-
-   /*
-    * Item —É–∂–µ –±—ã–ª —Ñ–∏–Ω–∞–ª–∏–∑–∏—Ä–æ–≤–∞–Ω.
-    */
-   IF l_current_message_uuid IS NOT NULL THEN
-
-      /*
-       * –ü–æ–≤—Ç–æ—Ä–Ω–∞—è –¥–æ—Å—Ç–∞–≤–∫–∞ —Ç–æ–≥–æ –∂–µ —Å–æ–æ–±—â–µ–Ω–∏—è.
-       */
-      IF l_current_message_uuid = p_message_uuid THEN
-
-         /*
-          * –¢–æ –∂–µ —Å–æ–æ–±—â–µ–Ω–∏–µ –∏ —Ä–æ–≤–Ω–æ —Ç–µ –∂–µ –¥–∞–Ω–Ω—ã–µ:
-          * —É—Å–ø–µ—à–Ω—ã–π –∏–¥–µ–º–ø–æ—Ç–µ–Ω—Ç–Ω—ã–π no-op.
-          */
-         IF l_current_inn IS NOT DISTINCT FROM p_inn
-            AND l_current_ires_code IS NOT DISTINCT FROM p_ires_code
-            AND l_current_tres_time IS NOT DISTINCT FROM p_tres_time
-            AND l_current_cres_info IS NOT DISTINCT FROM p_cres_info
-         THEN
-            p_res_code := cAlreadyApplied;
-            p_res_info :=
-                 'Item already applied: itm_id='
-                 || l_itm_id
-                 || ', message_uuid='
-                 || p_message_uuid;
-
-            RETURN;
-         END IF;
-
-         /*
-          * –¢–æ—Ç –∂–µ UUID —Å–æ–æ–±—â–µ–Ω–∏—è, –Ω–æ –¥–∞–Ω–Ω—ã–µ –æ—Ç–ª–∏—á–∞—é—Ç—Å—è.
-          * –≠—Ç–æ –Ω–∞—Ä—É—à–µ–Ω–∏–µ –∫–æ–Ω—Ç—Ä–∞–∫—Ç–∞ —Å–æ–æ–±—â–µ–Ω–∏—è.
-          */
-         p_res_code := cConflict;
-         p_res_info :=
-              'Item replay conflict: message_uuid='
-              || p_message_uuid
-              || ', itm_id='
-              || l_itm_id
-              || ', stored result differs from incoming result';
-
-         RETURN;
-      END IF;
-
-      /*
-       * Item —É–∂–µ –æ–±—Ä–∞–±–æ—Ç–∞–Ω –¥—Ä—É–≥–∏–º —Å–æ–æ–±—â–µ–Ω–∏–µ–º.
-       * –ü–æ–ª–∏—Ç–∏–∫–∞ first-wins.
-       */
-      p_res_code := cConflict;
-      p_res_info :=
-           'Item already finalized by another message: itm_id='
-           || l_itm_id
-           || ', stored_message_uuid='
-           || l_current_message_uuid
-           || ', incoming_message_uuid='
-           || p_message_uuid;
-
-      RETURN;
-   END IF;
-
-   /*
-    * –ü–µ—Ä–≤–æ–µ –ø—Ä–∏–º–µ–Ω–µ–Ω–∏–µ —Ä–µ–∑—É–ª—å—Ç–∞—Ç–∞.
-    */
-   UPDATE xxi.mi_0001
-      SET inn                   = p_inn,
-          ires_code             = p_ires_code,
-          tres_time             = p_tres_time,
-          cres_info             = p_cres_info,
-          message_uuid = p_message_uuid
-    WHERE itm_id = l_itm_id
-      AND message_uuid IS NULL;
-
-   GET DIAGNOSTICS l_updated_count = ROW_COUNT;
-
-   /*
-    * –°—Ç—Ä–æ–∫–∞ –∑–∞–±–ª–æ–∫–∏—Ä–æ–≤–∞–Ω–∞ FOR UPDATE, –ø–æ—ç—Ç–æ–º—É –æ—Ç—Å—É—Ç—Å—Ç–≤–∏–µ
-    * –æ–±–Ω–æ–≤–ª–µ–Ω–∏—è –æ–∑–Ω–∞—á–∞–µ—Ç –Ω–µ–æ–∂–∏–¥–∞–Ω–Ω—É—é –ø—Ä–æ–±–ª–µ–º—É —Å–æ—Å—Ç–æ—è–Ω–∏—è.
-    * –ù–µ –ø—Ä–µ–≤—Ä–∞—â–∞–µ–º –µ—ë –≤ –±–∏–∑–Ω–µ—Å-–æ—Ç–≤–µ—Ç, –ø—É—Å—Ç—å XXL —Å–¥–µ–ª–∞–µ—Ç retry.
-    */
-   IF l_updated_count <> 1 THEN
-      RAISE EXCEPTION
-         'Unexpected item update count: itm_id=%, updated_count=%',
-         l_itm_id,
-         l_updated_count;
-   END IF;
-
-   p_res_code := ret_Ok;
-   p_res_info := 'Item applied: itm_id=' || l_itm_id || ', req_id=' || l_req_id || ', message_uuid=' || p_message_uuid;
+         p_ret_code,
+         p_ret_info
+   );
 
 END;
-$procedure$;
+$procedure$
 
 -- end_of_Package
 ;
