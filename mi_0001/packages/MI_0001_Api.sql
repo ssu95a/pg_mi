@@ -544,25 +544,6 @@ begin
 
    return l_result;
 
-exception
-   WHEN OTHERS THEN
-      DECLARE
-         ex TS.T_StackedDiagnostics;
-      BEGIN
-        GET STACKED DIAGNOSTICS
-            ex.RETURNED_SQLSTATE    = RETURNED_SQLSTATE,  
-            ex.MESSAGE_TEXT         = MESSAGE_TEXT,
-            ex.PG_EXCEPTION_DETAIL  = PG_EXCEPTION_DETAIL,
-            ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
-            ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
-      
-         l_result.cRes_info := 'Error on map JSON item: ' || TS.WhenOthersError( cFunc, ex );
-         l_result.iRes_Code := ret_Fail;
-
-      END; 
-
-   return l_result;
-
 end;
 $function$
 
@@ -594,7 +575,7 @@ BEGIN
       MI_Item_Result_Api.apply_Item_Result (
 
          'xxi.mi_0001'::regclass,
-         'MI_0001_Api.map_Item_Result(numeric,jsonb)'::regprocedure,
+         'MI_0001_Api.map_Item_Result(numeric,jsonb)'::regproc,
 
          p_request_uuid,
          p_message_uuid,
