@@ -222,15 +222,18 @@ BEGIN
 
    ELSE -- p_response_kind = ret_FAIL
 
+      IF p_payload_text IS NOT NULL THEN
+         p_ret_info := 'p_payload_text must be null for failed item';
+         RETURN;
+      END IF;   
+
       IF p_response_code IS NULL OR btrim(p_response_code) = '' THEN
          p_ret_info := 'p_response_code is null or empty for failed item';
-
          RETURN;
-
       END IF;
 
-      l_item_Result.ires_Code := ret_Fail;
-      l_item_Result.cres_Info := COALESCE( NULLIF(p_response_info, ''), NULLIF(p_response_details, ''), p_response_code );
+      l_item_Result.iRes_Code := ret_Fail;
+      l_item_Result.cRes_Info := COALESCE( NULLIF(p_response_info, ''), NULLIF(p_response_details, ''), p_response_code );
 
    END IF;
 
