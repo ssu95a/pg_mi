@@ -575,7 +575,7 @@ BEGIN
       MI_Item_Result_Api.apply_Item_Result (
 
          'xxi.mi_0001'::regclass,
-         'MI_0001_Api.map_Item_Result(numeric,jsonb)'::regproc,
+         'MI_0001_Api.map_Item_Result'::regproc,
 
          p_request_uuid,
          p_message_uuid,
