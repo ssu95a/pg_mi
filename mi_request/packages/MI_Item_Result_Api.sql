@@ -76,7 +76,7 @@ $procedure$
 CREATE PROCEDURE apply_Item_Result (
 
    in p_item_Table        regclass,
-   in p_payload_Mapper    regprocedure,
+   in p_payload_Mapper    regproc,
 
    in p_request_uuid      uuid,
    in p_message_uuid      uuid,
@@ -115,11 +115,35 @@ BEGIN
    p_ret_code := ret_Fail;
    p_ret_info := NULL;
 
+   IF p_request_uuid IS NULL THEN
+      p_ret_info := 'p_request_uuid is null';
+      RETURN;
+   END IF;
+
+   IF p_message_uuid IS NULL THEN
+      p_ret_info := 'p_message_uuid is null';
+      RETURN;
+   END IF;
+
+   IF p_item_uuid IS NULL THEN
+      p_ret_info := 'p_item_uuid is null';
+      RETURN;
+   END IF;
+
+   IF p_response_kind IS NULL THEN
+      p_ret_info := 'p_response_kind is null';
+      RETURN;
+   END IF;
+
+   IF p_response_time IS NULL THEN
+      p_ret_info := 'p_response_time is null';
+      RETURN;
+   END IF;
+
    if p_response_kind not in (ret_OK,ret_Fail) then
       p_ret_info := 'unsupported p_response_kind: ' || p_response_kind;
       RETURN;
    end if;   
-
 
    EXECUTE format(
       $sql$
@@ -183,7 +207,8 @@ BEGIN
 
          EXECUTE format( 'SELECT * FROM %s($1,$2)', p_payload_Mapper )
             INTO l_item_Result
-           USING l_payload, l_itm_Id;
+           USING l_itm_Id, l_payload;
+
          EXCEPTION
             WHEN others THEN
                GET STACKED DIAGNOSTICS
