@@ -214,7 +214,7 @@ BEGIN
    THEN
 
       -- пытаемся завершить весь запрос, если вдруг не 
-      call try_Complete_Request( p_item_Table, l_req_Id, l_row_Count );
+      call MI_Item_Result_Api.try_Complete_Request( p_item_Table, l_req_Id, l_row_Count );
 
       IF l_current_message_uuid = p_message_uuid THEN
          p_ret_code := cAlready_applied;
@@ -239,7 +239,7 @@ BEGIN
       END IF;
 
       -- разбор PayLoad
-      call parse_Json_Payload( p_payload_text, l_payload, p_ret_code, p_ret_info );
+      call MI_Item_Result_Api.parse_Json_Payload( p_payload_text, l_payload, p_ret_code, p_ret_info );
       
       if p_ret_code <> ret_OK then
          RETURN;
@@ -314,7 +314,7 @@ BEGIN
    END IF;
 
    -- пытаемся завершить весь запрос 
-   call try_Complete_Request( p_item_Table, l_req_Id, l_row_Count );
+   call MI_Item_Result_Api.try_Complete_Request( p_item_Table, l_req_Id, l_row_Count );
 
    if l_row_Count = 1 then
       call MI_logger.info( cLogger, 'Request is closed', p_req_id =>l_req_Id, p_itm_id => l_itm_Id );

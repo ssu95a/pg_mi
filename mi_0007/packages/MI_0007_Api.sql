@@ -1022,11 +1022,35 @@ END;
 $procedure$
 
 
-/*
-   Записать бизнес-результат по item
-*/
-CREATE PROCEDURE apply_Item_Result (
+CREATE FUNCTION map_Item_Result (
+   in p_itm_Id  numeric,
+   in p_payload jsonb
+)
+RETURNS 
+   MI_Item_Result_Api.Item_Result
+AS
+$function$
+   #package
+DECLARE
+   l_result     MI_Item_Result_Api.Item_Result;
+   l_doc_status numeric;
+BEGIN
+   l_doc_status := NULLIF(p_payload ->> 'docStatus', '')::numeric;
 
+   IF l_doc_status IS NULL THEN
+      RAISE EXCEPTION 'docStatus is null in successful payload';
+   END IF;
+
+   l_result.ires_code := l_doc_status;
+   l_result.cres_info := COALESCE( NULLIF(p_payload ->> 'comment', ''),'docStatus=' || l_doc_status );
+
+   RETURN l_result;
+
+END;
+$function$
+
+/* */
+CREATE PROCEDURE apply_Item_Result (
    in  p_request_uuid      uuid,
    in  p_message_uuid      uuid,
    in  p_item_uuid         uuid,
@@ -1040,216 +1064,36 @@ CREATE PROCEDURE apply_Item_Result (
 
    in  p_payload_text      text,
 
-  out p_ret_code          int4,
-  out p_ret_info          varchar
+   out p_ret_code          int4,
+   out p_ret_info          varchar
 )
 AS
 $procedure$
-DECLARE
-
-   cFunc constant varchar := cPkg_Name || '.apply_Item_Result';
-
-   cAlready_applied constant int4 := 1;
-
-   l_itm_id              numeric;
-   l_current_message_uuid uuid;
-
-   l_payload             jsonb;
-
-   l_doc_status          numeric;
-   l_ires_code           numeric;
-   l_cres_info           text;
-
-   l_row_count           int4;
-
+   #package
 BEGIN
+   CALL MI_Item_Result_Api.apply_Item_Result (
+      
+      'xxi.mi_0007'::regclass,
+      'MI_0007_Api.map_Item_Result'::regproc,
 
-   p_ret_code := ret_Fail;
-   p_ret_info := NULL;
+      p_request_uuid,
+      p_message_uuid,
+      p_item_uuid,
 
-   /*
-    * Базовая validation.
-    */
-   IF p_request_uuid IS NULL THEN
-      p_ret_info := 'p_request_uuid is null';
-      RETURN;
-   END IF;
+      p_response_kind,
 
-   IF p_message_uuid IS NULL THEN
-      p_ret_info := 'p_message_uuid is null';
-      RETURN;
-   END IF;
+      p_response_code,
+      p_response_info,
+      p_response_details,
+      p_response_time,
 
-   IF p_item_uuid IS NULL THEN
-      p_ret_info := 'p_item_uuid is null';
-      RETURN;
-   END IF;
+      p_payload_text,
 
-   IF p_response_kind IS NULL THEN
-      p_ret_info := 'p_response_kind is null';
-      RETURN;
-   END IF;
-
-   IF p_response_time IS NULL THEN
-      p_ret_info := 'p_response_time is null';
-      RETURN;
-   END IF;
-
-   if p_response_kind not in (ret_OK,ret_Fail) then
-      p_ret_info := 'unsupported p_response_kind: ' || p_response_kind;
-      RETURN;
-   end if;   
-
-   /*
-    * Находим item исходного request.
-    *
-    */
-   BEGIN
-      SELECT i.itm_id,
-             i.message_uuid
-        INTO l_itm_id,
-             l_current_message_uuid
-        FROM xxi.mi_req r
-        JOIN xxi.mi_0007 i
-          ON i.req_id = r.req_id
-       WHERE r.external_uuid = p_request_uuid
-         AND i.external_uuid = p_item_uuid
-       FOR UPDATE OF i;
-
-   EXCEPTION
-      WHEN no_data_found THEN
-         p_ret_info := 'mi_0007 item not found: request_uuid=' || p_request_uuid || ', item_uuid=' || p_item_uuid;
-
-         RETURN;
-
-      WHEN too_many_rows THEN
-         p_ret_info := 'more than one mi_0007 item found: request_uuid=' || p_request_uuid || ', item_uuid=' || p_item_uuid;
-
-         RETURN;
-   END;
-
-   /*
-    *
-    * Тот же message_uuid уже применён -> OK, но already applied.
-    * Другой message_uuid уже применён -> конфликт, не retry.
-    */
-   IF l_current_message_uuid IS NOT NULL 
-   THEN
-      IF l_current_message_uuid = p_message_uuid THEN
-         p_ret_code := cAlready_applied;
-         p_ret_info := 'Item already applied';
-
-         RETURN;
-
-      END IF;
-
-      p_ret_info := 'mi_0007 item already applied by another message: current_message_uuid=' || l_current_message_uuid || ', new_message_uuid=' || p_message_uuid;
-      RETURN;
-
-   END IF;
-
-   /*
-    * Нормализованный OK.
-    */
-   IF p_response_kind = ret_OK THEN
-
-      IF p_payload_text IS NULL OR btrim(p_payload_text) = '' THEN
-         p_ret_info := 'p_payload_text is null or empty for successful item';
-         RETURN;
-
-      END IF;
-
-      BEGIN
-         l_payload := p_payload_text::jsonb;
-      EXCEPTION
-
-         WHEN OTHERS THEN
-            DECLARE
-               ex TS.T_StackedDiagnostics;
-            BEGIN
-              GET STACKED DIAGNOSTICS                       
-                  ex.RETURNED_SQLSTATE    = RETURNED_SQLSTATE,  
-                  ex.MESSAGE_TEXT         = MESSAGE_TEXT,
-                  ex.PG_EXCEPTION_DETAIL  = PG_EXCEPTION_DETAIL,
-                  ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
-                  ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
-            
-                  p_ret_info := 'p_payload_text is not valid JSON: ' || TS.WhenOthersError( cFunc, ex );
-         END; 
-
-         RETURN;
-
-      END;
-
-      BEGIN
-         l_doc_status := NULLIF(l_payload ->> 'docStatus', '')::numeric;
-      EXCEPTION
-         WHEN others THEN
-            p_ret_info := 'docStatus is not numeric in successful payload';
-            RETURN;
-      END;
-
-      IF l_doc_status IS NULL THEN
-         p_ret_info := 'docStatus is null in successful payload';
-         RETURN;
-      END IF;
-
-      l_ires_code := l_doc_status;
-
-      l_cres_info :=
-         COALESCE(
-            NULLIF(l_payload ->> 'comment', ''),
-            'docStatus=' || l_doc_status
-         );
-
-   ELSE -- kind = ret_Fail
-
-      IF p_payload_text IS NOT NULL THEN
-         p_ret_info := 'p_payload_text must be null for failed item';
-         RETURN;
-
-      END IF;
-
-      IF p_response_code IS NULL OR btrim(p_response_code) = '' THEN
-         p_ret_info := 'p_response_code is null or empty for failed item';
-         RETURN;
-
-      END IF;
-
-      l_ires_code := ret_Fail;
-
-      l_cres_info := COALESCE( NULLIF(p_response_info, ''), NULLIF(p_response_details, ''), p_response_code );
-
-   END IF;
-
-   /*
-    * p_ret_code = 0 даже для p_response_kind = -1,
-    * если отрицательный outcome успешно сохранён в XXI.
-    */
-   UPDATE xxi.mi_0007
-      SET ires_code    = l_ires_code,
-          tres_time    = p_response_time,
-          message_uuid = p_message_uuid,
-          cres_info    = l_cres_info,
-          error_code   = CASE WHEN p_response_kind = ret_Fail THEN p_response_code ELSE NULL END
-    WHERE 
-          itm_id = l_itm_id
-      AND message_uuid IS NULL;
-
-   GET DIAGNOSTICS l_row_count = ROW_COUNT;
-
-   IF l_row_count <> 1 THEN
-      p_ret_info :=
-         'mi_0007 item outcome was not applied, row_count=' || l_row_count;
-      RETURN;
-   END IF;
-
-   p_ret_code := ret_OK;
-   p_ret_info := 'applied';
-
+      p_ret_code,
+      p_ret_info
+   );
 END;
 $procedure$
-
 
 /*
    helper:
