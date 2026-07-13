@@ -72,6 +72,39 @@ END;
 $procedure$
 
 
+/* Закрывает запрос если все итемы закрыты */
+CREATE PROCEDURE try_Complete_Request (
+   in  p_item_table regclass,
+   in  p_req_id     numeric,
+  out  p_row_count  int4
+)
+AS
+$procedure$
+   #package
+   #private
+BEGIN
+   EXECUTE format(
+      $sql$
+      UPDATE xxi.mi_req r
+         SET status_cd = 1
+       WHERE r.status_cd = 3
+         AND r.req_id = $1
+         AND NOT EXISTS (
+               SELECT 1
+                 FROM %s i
+                WHERE i.req_id = r.req_id
+                  AND i.message_uuid IS NULL
+         )
+      $sql$,
+      p_item_table
+   )
+   USING p_req_id;
+
+   GET DIAGNOSTICS p_row_count = ROW_COUNT;
+
+END;
+$procedure$
+
 /* */
 CREATE PROCEDURE apply_Item_Result (
 
@@ -103,6 +136,8 @@ DECLARE
    cOther_applied   constant int4 := 2;
 
    l_itm_id               numeric(12);
+   l_req_Id               numeric(12);
+
    l_current_message_uuid uuid;
 
    l_payload              jsonb;
@@ -148,7 +183,8 @@ BEGIN
    EXECUTE format(
       $sql$
       SELECT i.itm_id,
-             i.message_uuid
+             i.message_uuid,
+             i.req_id
         FROM xxi.mi_req r
         JOIN %s i
           ON i.req_id = r.req_id
@@ -159,7 +195,8 @@ BEGIN
       p_item_table
    )
    INTO l_itm_id,
-        l_current_message_uuid
+        l_current_message_uuid,
+        l_req_Id
    USING p_request_uuid,
          p_item_uuid;
 
@@ -267,6 +304,13 @@ BEGIN
       p_ret_info := 'item outcome was not applied, table=' || p_item_table || ', row_count=' || l_row_count;
       RETURN;
    END IF;
+
+   -- пытаемся завершить весь запрос 
+   call try_Complete_Request( p_item_Table, l_req_Id, l_row_Count );
+
+   if l_row_Count = 1 then
+      call MI_logger.info( cLogger, 'Request is closed', p_req_id =>l_req_Id, p_itm_id => l_itm_Id );
+   end if;
 
    p_ret_code := ret_OK;
    p_ret_info := 'applied';
