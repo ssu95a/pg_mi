@@ -147,6 +147,10 @@ DECLARE
 
 BEGIN
 
+   call MI_logger.enter_f( cLogger, cPkg_Name || '.apply_Item_Result', 
+      'p_item_Table = ' || p_item_Table::varchar || ', p_request_uuid = ' || p_request_uuid || ', p_item_uuid = ' || p_item_uuid || ', p_response_kind = ' || p_response_kind || ', p_response_code = ' || p_response_code 
+   );
+
    p_ret_code := ret_Fail;
    p_ret_info := NULL;
 
@@ -208,6 +212,9 @@ BEGIN
 
    IF l_current_message_uuid IS NOT NULL 
    THEN
+
+      -- пытаемся завершить весь запрос, если вдруг не 
+      call try_Complete_Request( p_item_Table, l_req_Id, l_row_Count );
 
       IF l_current_message_uuid = p_message_uuid THEN
          p_ret_code := cAlready_applied;
@@ -302,6 +309,7 @@ BEGIN
 
    IF l_row_count <> 1 THEN
       p_ret_info := 'item outcome was not applied, table=' || p_item_table || ', row_count=' || l_row_count;
+      call MI_logger.exit_f( cLogger, p_ret_info, p_req_id =>l_req_Id, p_itm_id => l_itm_Id );
       RETURN;
    END IF;
 
@@ -313,7 +321,10 @@ BEGIN
    end if;
 
    p_ret_code := ret_OK;
-   p_ret_info := 'applied';
+   --p_ret_info := 'applied';
+   p_ret_info := 'applied' || '; req_id=' || l_req_Id || '; request_completed_row_count=' || l_row_Count;
+
+   call MI_logger.exit_f( cLogger, p_ret_info, p_req_id =>l_req_Id, p_itm_id => l_itm_Id );
 
 END;
 $procedure$
