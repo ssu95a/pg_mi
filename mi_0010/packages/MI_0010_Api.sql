@@ -216,25 +216,42 @@ begin
    p_ret_code := ret_Fail;
    p_ret_info := NULL;
 
-   IF p_message_uuid IS NULL THEN
+   if p_message_uuid is null then
       p_ret_info := 'p_message_uuid is null';
       return;
-   END IF;
+   end if;
 
-   IF p_ctaxreq_id IS NULL THEN
-      p_ret_info := 'p_ctaxreq_id is null';
-      return;
-   END IF;
+	if p_ctaxreq_id is null or btrim(p_ctaxreq_id) = '' then
+	   p_ret_info := 'p_ctaxreq_id is null or empty';
+	   return;
+	end if;
 
-   IF p_request_time IS NULL THEN
+   if p_request_time is null then
       p_ret_info := 'p_request_time is null';
       return;
-   END IF;
+   end if;
 
-	IF p_payload_text IS NULL OR btrim(p_payload_text) = '' THEN
+	if p_payload_text is null or btrim(p_payload_text) = '' then
       p_ret_info := 'p_payload_text is null';
       return;
-	END IF;
+	end if;
+
+	if p_original_request_uuid is null then
+	   p_ret_info := 'p_original_request_uuid is null';
+	   return;
+	end if;
+
+	select r.req_id
+	  		 into l_req_id
+	  from xxi.mi_req r
+	 where 
+	 		 r.inf_id = 10 and r.ctaxreq_id = p_ctaxreq_id limit 1;
+
+	if l_req_id is not null then
+	   p_ret_code := ret_ok;
+	   p_ret_info := 'already registered; req_id=' || l_req_id;
+	   return;
+	end if;
 
 	call MI_item_Result_Api.parse_Json_Payload( p_payload_text, l_payLoad, p_ret_code, p_ret_Info );
 
