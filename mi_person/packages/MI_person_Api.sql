@@ -26,7 +26,7 @@ DECLARE
    cLogger   Constant varchar(30) := 'ms.person';
 
    g_inf_Attrs MI_Person_Api.inf_Attrs_t[] := array[
-      -- Пасспорта
+      -- Паспорта
       ( array[74,75], array['doc_type_id', 'doc_ser', 'doc_num', 'doc_issue_date'] )::MI_Person_Api.inf_Attrs_t,
       ( array[1],     array['snils'] )::MI_Person_Api.inf_Attrs_t
    ];
@@ -132,8 +132,6 @@ create function get_Person (
 ) 
    returns
       xxi.mi_person
-   LANGUAGE
-      plpgsql
 AS 
 $function$
    #package
@@ -272,8 +270,6 @@ CREATE FUNCTION build_Match_Sql_Select(
 )
    RETURNS 
       text
-   LANGUAGE
-      plpgsql
 AS
 $function$
    #package
@@ -319,6 +315,7 @@ BEGIN
 
 END;
 $function$
+
 
 /* 
    Выполнить поиск по exact/null-safe профилю
@@ -569,10 +566,8 @@ CREATE FUNCTION get_Or_Create(
    in p_inf_id   numeric,
    in p_person_J jsonb
 )
-   RETURNS 
-      NUMERIC
-   LANGUAGE 
-      plpgsql
+   returns 
+      numeric
 AS
 $function$
    #package

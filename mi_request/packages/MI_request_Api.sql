@@ -148,6 +148,7 @@ $function$
 CREATE FUNCTION create_Request (
    in p_inf_id         numeric,
    in p_correlation_id uuid    DEFAULT NULL,
+   in p_ctaxreq_id     varchar DEFAULT NULL,
    in p_status_cd      numeric DEFAULT 0,
    in p_itype          numeric DEFAULT NULL,
    in p_i1             numeric DEFAULT NULL,
@@ -183,7 +184,8 @@ BEGIN
       itype,
       i1,
       i2,
-      i3
+      i3,
+      ctaxreq_id
    )
    VALUES(
       p_inf_id,
@@ -194,7 +196,8 @@ BEGIN
       p_itype,
       p_i1,
       p_i2,
-      p_i3
+      p_i3,
+      p_ctaxreq_id
    );
    
    RETURN l_req_id;

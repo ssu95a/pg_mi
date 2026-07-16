@@ -7,13 +7,13 @@ CREATE TABLE IF NOT EXISTS xxi.mi_0007 (
 -- +------------------------------------------------------------------------------------
 -- |   column      |  type      |   null  | default 
 -- +------------------------------------------------------------------------------------
-      itm_id        numeric(12)   NOT NULL   DEFAULT nextval('xxi.s_mi_item'::regclass),
-      external_uuid uuid          NOT NULL   DEFAULT uuidv7(),
+      itm_id        numeric(12)   NOT NULL  DEFAULT nextval('xxi.s_mi_item'::regclass),
+      external_uuid uuid          NOT NULL  DEFAULT uuidv7(),
       req_id        numeric(12)   NOT NULL,
       
       person_id     numeric(12)   NOT NULL,
       
-      created_at    timestamp     NOT NULL   DEFAULT current_timestamp,
+      created_at    timestamp     NOT NULL  DEFAULT current_timestamp,
    -- бизнес ответ на запрос
       message_uuid  uuid              NULL,
 
@@ -63,4 +63,7 @@ COMMENT ON COLUMN xxi.mi_0007.cres_info is
 ;
 COMMENT ON COLUMN xxi.mi_0007.tres_time is 
    'Дата/время получения результата'
+;
+COMMENT ON COLUMN xxi.mi_0001.message_uuid is 
+   'ID сообщения из MI, где был обработан элемент'
 ;

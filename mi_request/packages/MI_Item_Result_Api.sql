@@ -49,7 +49,6 @@ CREATE PROCEDURE parse_Json_Payload (
 AS 
 $procedure$
    #package
-   #private
 BEGIN
    p_payload_json := p_payload_text::jsonb;
    p_ret_Code     := ret_Ok;

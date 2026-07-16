@@ -2,30 +2,30 @@
 -- Таблица    : xxi.mi_req
 -- Назначение : Реестр запросов в модули СМЭВ
 -- Описание   : Хранит все заголовки запросов. Исходник для VIEW по видам сведений. Партицированная по inf_id. Нет PK!
--- Версия     : 0.5, 28.05.2026
+-- Версия     : 0.9, 13.07.2026
 -- 
 CREATE TABLE IF NOT EXISTS xxi.mi_req (
 -- +---------------------------------------------------------------------------
--- |   column     |    type     |    null   | default 
+-- |     column     |    type    |    null   | default 
 -- +---------------------------------------------------------------------------
-      req_id         numeric(12)  NOT NULL,
-      external_uuid  uuid         NOT NULL  DEFAULT uuidv7(),
-      inf_id         numeric(6)   NOT NULL,
-      created_at     timestamp    NOT NULL  DEFAULT current_timestamp,
-      correlation_id uuid         NOT NULL,
-      status_cd      numeric(3)   NOT NULL  DEFAULT 0,
-      stage_cd       numeric(3)       NULL,
-      idsmr          varchar(3)   NOT NULL  DEFAULT sys_context('B21'::character varying, 'IDSmr'::character varying),
-      note           text             NULL, 
-      ctaxreq_id     varchar(50)      NULL,
-      itype          numeric(3)       NULL,
-      i1             numeric(3)       NULL, 
-      i2             numeric(3)       NULL,
-      i3             numeric(3)       NULL,
-      result_code    varchar(100)     NULL,
-      result_info    varchar(300)     NULL,
-      result_time    timestamp        NULL,
-      message_uuid   uuid             NULL
+      req_id         numeric(12)   NOT NULL,
+      external_uuid  uuid          NOT NULL   DEFAULT uuidv7(),
+      inf_id         numeric(6)    NOT NULL,
+      created_at     timestamp     NOT NULL   DEFAULT current_timestamp,
+      correlation_id uuid          NOT NULL,
+      status_cd      numeric(3)    NOT NULL   DEFAULT 0,
+      stage_cd       numeric(3)        NULL,
+      idsmr          varchar(3)    NOT NULL   DEFAULT sys_context('B21'::character varying, 'IDSmr'::character varying),
+      note           text              NULL, 
+      ctaxreq_id     varchar(50)       NULL,
+      itype          numeric(3)        NULL,
+      i1             numeric(3)        NULL, 
+      i2             numeric(3)        NULL,
+      i3             numeric(3)        NULL,
+      result_code    varchar(100)      NULL,
+      result_info    varchar(300)      NULL,
+      result_time    timestamp         NULL,
+      message_uuid   uuid              NULL
 
 -- Constraints:
 -- FK
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS xxi.mi_req (
       CHECK ( status_cd in ( 0, 1, 2, 3, -1) )
 )
 PARTITION 
-       BY LIST (inf_id);
+   BY LIST (inf_id);
 
 -- Indexes
 -- FK на req_Id
