@@ -65,9 +65,9 @@ create index IF NOT EXISTS ix_mi_req__inf_id_created_at
    on xxi.mi_req (inf_id, created_at)
       tablespace indexes
 ;
-create index IF NOT EXISTS ix_mi_req__ctaxreq_id
-   on xxi.mi_req (ctaxreq_id)
-      tablespace indexes
+CREATE INDEX IF NOT EXISTS ix_mi_req__inf_ctaxreq 
+   ON xxi.mi_req( inf_id, ctaxreq_id ) 
+      TABLESPACE indexes
 ;
 create index IF NOT EXISTS ix_mi_req__external_uuid
    on xxi.mi_req (external_uuid)
@@ -75,8 +75,8 @@ create index IF NOT EXISTS ix_mi_req__external_uuid
 ;
 create index if not exists ix_mi_req__original_request_uuid
    on xxi.mi_req(original_request_uuid)
-      where original_request_uuid is not null
-         tablespace indexes
+      tablespace indexes
+         where original_request_uuid is not null
 ;
 
 -- Partitions
@@ -104,7 +104,13 @@ create table IF NOT EXISTS xxi.mi_req_0001
       FOR VALUES IN ( 12, 13 )
           TABLESPACE USERS
 ;
-   default
+-- «¿√—
+create table IF NOT EXISTS xxi.mi_req_0010
+   partition of xxi.mi_req
+      FOR VALUES IN ( 10 )
+          TABLESPACE USERS
+;
+-- default
 create table IF NOT EXISTS xxi.mi_req_default
    partition of xxi.mi_req
       default

@@ -191,6 +191,8 @@ $procedure$
    #package
 declare
 
+   cFunc constant varchar(50) := cPkg_Name || '.apply_Request'::varchar;
+
 	l_payLoad jsonb;
 
 	l_req_Id  numeric(12);
@@ -209,7 +211,7 @@ declare
 
 begin
 
-   call MI_logger.enter_f( cLogger, cPkg_Name || '.apply_Item_Result', 'p_message_uuid = ' || p_message_uuid || ', p_ctaxreq_id = ' || p_ctaxreq_id );
+   call MI_logger.enter_f( cLogger, cFunc, 'p_message_uuid = ' || p_message_uuid || ', p_ctaxreq_id = ' || p_ctaxreq_id || ', p_original_request_uuid = ' || p_original_request_uuid );
 
    p_ret_code := ret_Fail;
    p_ret_info := NULL;
@@ -259,12 +261,12 @@ begin
    IF l_doc_Typ_Cod = '21' THEN
       -- Паспорт может приходить по разному
 		l_doc_Ser_num := replace( l_payLoad -> 'identityDocument' ->> 'seriesNumber', ' ', '' );
-	   l_doc_Ser := SUBSTR( r_nat.CDOC_SER_NUM, 1, 4 );
-      l_doc_Num := SUBSTR( r_nat.CDOC_SER_NUM, 5 );
+	   l_doc_Ser := SUBSTR( l_doc_Ser_num, 1, 4 );
+      l_doc_Num := SUBSTR( l_doc_Ser_num, 5 );
    ELSE         
 		l_doc_Ser_num := l_payLoad -> 'identityDocument' ->> 'seriesNumber';
-      l_doc_Ser := trim(REGEXP_SUBSTR( r_nat.CDOC_SER_NUM, '\w*' ));
-      l_doc_Num := trim(REGEXP_SUBSTR( r_nat.CDOC_SER_NUM, '\s+\w*' ));
+      l_doc_Ser := trim(REGEXP_SUBSTR( l_doc_Ser_num, '\w*' ));
+      l_doc_Num := trim(REGEXP_SUBSTR( l_doc_Ser_num, '\s+\w*' ));
    END IF;         
 
    IF l_doc_Num IS NULL THEN 
@@ -274,19 +276,19 @@ begin
 
 	l_person_J := MI_0010_Api.build_Json_Person (
 		
-		p_json -> 'fullName' ->> 'family',
-		p_json -> 'fullName' ->> 'firstName',
-		p_json -> 'fullName' ->> 'patronymic',
+		l_payLoad -> 'fullName' ->> 'family',
+		l_payLoad -> 'fullName' ->> 'firstName',
+		l_payLoad -> 'fullName' ->> 'patronymic',
 		
-		p_json ->> 'inn',
+		l_payLoad ->> 'inn',
 
-		NULLIF( p_json ->> 'birthDate', '' )::date,
-		NULLIF( p_json ->> 'deathDate', '' )::date,
+		NULLIF( l_payLoad ->> 'birthDate', '' )::date,
+		NULLIF( l_payLoad ->> 'deathDate', '' )::date,
 
 		l_doc_Typ_Num,
 		l_doc_Ser,
 		l_doc_Num,
-		NULLIF(p_json -> 'identityDocument' ->> 'issueDate', '')::date
+		NULLIF(l_payLoad -> 'identityDocument' ->> 'issueDate', '')::date
 	);
 
 	l_person_id := mi_person_Api.get_Or_Create( 10::numeric, l_person_J );
@@ -318,10 +320,11 @@ begin
 			 (l_payLoad ->> 'deathDateFlag')::numeric,
 			 l_update17Lnk
 			 )	
-returning
+	returning
 		itm_Id into l_itm_Id;
 
 		p_ret_code := ret_OK;
+		p_ret_info := 'registered; req_id=' || l_req_Id || '; itm_id=' || l_itm_Id;
 
 END;
 $procedure$
