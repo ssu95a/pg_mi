@@ -25,7 +25,9 @@ CREATE TABLE IF NOT EXISTS xxi.mi_req (
       result_code    varchar(100)      NULL,
       result_info    varchar(300)      NULL,
       result_time    timestamp         NULL,
-      message_uuid   uuid              NULL
+      message_uuid   uuid              NULL,
+      original_request_uuid
+                     uuid              NULL
 
 -- Constraints:
 -- FK
@@ -70,6 +72,11 @@ create index IF NOT EXISTS ix_mi_req__ctaxreq_id
 create index IF NOT EXISTS ix_mi_req__external_uuid
    on xxi.mi_req (external_uuid)
       tablespace indexes
+;
+create index if not exists ix_mi_req__original_request_uuid
+   on xxi.mi_req(original_request_uuid)
+      where original_request_uuid is not null
+         tablespace indexes
 ;
 
 -- Partitions
@@ -149,3 +156,5 @@ COMMENT ON COLUMN xxi.mi_req.result_time is
 COMMENT ON COLUMN xxi.mi_req.message_uuid is
    'ИД сообщения MI на который сформирован запрос или получен ответ'
 ;
+COMMENT ON COLUMN xxi.mi_req.original_request_uuid IS
+   'ID исходного запроса в MI для входящих business-запросов MI -> XXL -> XXI';

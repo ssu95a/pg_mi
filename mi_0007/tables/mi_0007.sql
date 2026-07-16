@@ -64,6 +64,6 @@ COMMENT ON COLUMN xxi.mi_0007.cres_info is
 COMMENT ON COLUMN xxi.mi_0007.tres_time is 
    'Дата/время получения результата'
 ;
-COMMENT ON COLUMN xxi.mi_0001.message_uuid is 
+COMMENT ON COLUMN xxi.mi_0007.message_uuid is 
    'ID сообщения из MI, где был обработан элемент'
 ;

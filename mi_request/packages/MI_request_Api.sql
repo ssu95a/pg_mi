@@ -146,19 +146,19 @@ $function$
    Создать request header
 */
 CREATE FUNCTION create_Request (
-   in p_inf_id         numeric,
-   in p_correlation_id uuid    DEFAULT NULL,
-   in p_ctaxreq_id     varchar DEFAULT NULL,
-   in p_status_cd      numeric DEFAULT 0,
-   in p_itype          numeric DEFAULT NULL,
-   in p_i1             numeric DEFAULT NULL,
-   in p_i2             numeric DEFAULT NULL,
-   in p_i3             integer DEFAULT NULL
+   in p_inf_id                numeric,
+   in p_correlation_id        uuid    DEFAULT NULL,
+   in p_original_request_uuid uuid    DEFAULT NULL,
+   in p_ctaxreq_id            varchar DEFAULT NULL,
+   in p_message_uuid          uuid    DEFAULT NULL,
+   in p_status_cd             numeric DEFAULT 0,
+   in p_itype                 numeric DEFAULT NULL,
+   in p_i1                    numeric DEFAULT NULL,
+   in p_i2                    numeric DEFAULT NULL,
+   in p_i3                    integer DEFAULT NULL
 )
    RETURNS 
       numeric
-   LANGUAGE
-      plPGsql
 AS
 $function$
    #package
@@ -180,28 +180,31 @@ BEGIN
       req_id,
       created_at,
       correlation_id,
+      original_request_uuid,
+      ctaxreq_id,
+      message_uuid,
       status_cd,
       itype,
       i1,
       i2,
-      i3,
-      ctaxreq_id
+      i3
    )
-   VALUES(
+   VALUES (
       p_inf_id,
       l_req_id,
       clock_timestamp(),
       l_correlation_id,
+      p_original_request_uuid,
+      p_ctaxreq_id,
+      p_message_uuid,
       p_status_cd,
       p_itype,
       p_i1,
       p_i2,
-      p_i3,
-      p_ctaxreq_id
+      p_i3
    );
    
-   RETURN l_req_id;
-
+   return l_req_id;
 END;
 $function$
 

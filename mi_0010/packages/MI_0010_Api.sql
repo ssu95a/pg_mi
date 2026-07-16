@@ -73,7 +73,8 @@ BEGIN
          'doc_type_id',    p_doc_Type_Id,
          'doc_ser',        p_doc_series,
          'doc_num',        p_doc_number,
-         'doc_issue_date', p_doc_issue_date
+         'doc_issue_date', p_doc_issue_date,
+         'inn', 				p_inn
       );
 
    RETURN jsonb_strip_nulls(l_json);
@@ -170,18 +171,20 @@ $procedure$
 
 
 /* */
-CREATE PROCEDURE apply_Item_Result (
+CREATE PROCEDURE apply_Request (
 
-	in p_message_uuid		uuid,
-	in p_ctaxreq_id		varchar,
-	in p_request_time		timestamptz,
+   in p_message_uuid          uuid,
+   in p_original_request_uuid uuid,
+   in p_correlation_id        uuid,
 
-	in p_correlation_id  uuid,
+   in p_request_time          timestamptz,
 
-   in p_payload_text		text,
+   in p_ctaxreq_id            varchar,
 
-  out p_ret_code			int4,
-  out p_ret_info			varchar
+   in p_payload_text          text,
+
+  out p_ret_code              int4,
+  out p_ret_info              varchar
 )
 AS
 $procedure$
@@ -206,7 +209,7 @@ declare
 
 begin
 
-   call MI_logger.enter_f( cLogger, cPkg_Name || '.apply_Item_Result', 'p_message_uuid = ' || p_request_uuid || ', p_ctaxreq_id = ' || p_ctaxreq_id );
+   call MI_logger.enter_f( cLogger, cPkg_Name || '.apply_Item_Result', 'p_message_uuid = ' || p_message_uuid || ', p_ctaxreq_id = ' || p_ctaxreq_id );
 
    p_ret_code := ret_Fail;
    p_ret_info := NULL;
@@ -247,7 +250,7 @@ begin
           pud.cpudCode9 = l_doc_Typ_Cod
       AND pud.ipuduse = 0;
 
-	if not found then
+	if l_doc_Typ_Num is null then
 		p_ret_Info := 'Не удается по коду "' || l_doc_Typ_Cod  || '" определить тип ДУЛа в таблице pud'; 
 		return;
 	end if;
@@ -291,13 +294,14 @@ begin
 	/*
 		Пишем заголовок внешнего запроса
 	*/
-	l_req_Id := MI_requset_Api.create_Request ( 
-		p_inf_id		 	 => 10::numeric, 
-		p_ctaxreq_id	 => p_ctaxreq_id, 
-		p_correlation_id=> p_correlation_id,
-		p_status_cd		 => 1::numeric
+	l_req_Id := MI_Request_Api.create_Request(
+	   p_inf_id                => 10::numeric,
+	   p_correlation_id        => p_correlation_id,
+	   p_original_request_uuid => p_original_request_uuid,
+	   p_ctaxreq_id            => p_ctaxreq_id,
+	   p_message_uuid          => p_message_uuid,
+	   p_status_cd             => 1::numeric
 	);
-
 
 	/* Данные внешнего запроса */
 	insert into 
