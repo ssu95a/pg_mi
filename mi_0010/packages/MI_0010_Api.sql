@@ -179,8 +179,6 @@ CREATE PROCEDURE apply_Request (
 
    in p_request_time          timestamptz,
 
-   in p_ctaxreq_id            varchar,
-
    in p_payload_text          text,
 
   out p_ret_code              int4,
@@ -207,11 +205,13 @@ declare
 	l_doc_Ser		varchar;
 	l_doc_Num		varchar;
 
+   l_ctaxreq_id   varchar;
+
 	l_update17Lnk  numeric := MI_prp.get_Inf_Property( 23, 'INF_23_UPDATE_17_LNK', '0' )::numeric;
 
 begin
 
-   call MI_logger.enter_f( cLogger, cFunc, 'p_message_uuid = ' || p_message_uuid || ', p_ctaxreq_id = ' || p_ctaxreq_id || ', p_original_request_uuid = ' || p_original_request_uuid );
+   call MI_logger.enter_f( cLogger, cFunc, 'p_message_uuid = ' || p_message_uuid || ', p_original_request_uuid = ' || p_original_request_uuid );
 
    p_ret_code := ret_Fail;
    p_ret_info := NULL;
@@ -221,42 +221,46 @@ begin
       return;
    end if;
 
-	if p_ctaxreq_id is null or btrim(p_ctaxreq_id) = '' then
-	   p_ret_info := 'p_ctaxreq_id is null or empty';
-	   return;
-	end if;
-
    if p_request_time is null then
       p_ret_info := 'p_request_time is null';
       return;
    end if;
-
-	if p_payload_text is null or btrim(p_payload_text) = '' then
-      p_ret_info := 'p_payload_text is null';
-      return;
-	end if;
 
 	if p_original_request_uuid is null then
 	   p_ret_info := 'p_original_request_uuid is null';
 	   return;
 	end if;
 
-	select r.req_id
-	  		 into l_req_id
-	  from xxi.mi_req r
-	 where 
-	 		 r.inf_id = 10 and r.ctaxreq_id = p_ctaxreq_id limit 1;
 
-	if l_req_id is not null then
-	   p_ret_code := ret_ok;
-	   p_ret_info := 'already registered; req_id=' || l_req_id;
-	   return;
+	if p_payload_text is null or btrim(p_payload_text) = '' then
+      p_ret_info := 'p_payload_text is null';
+      return;
 	end if;
 
 	call MI_item_Result_Api.parse_Json_Payload( p_payload_text, l_payLoad, p_ret_code, p_ret_Info );
 
 	if p_ret_code <> ret_OK then
 		return;
+	end if;
+
+	l_ctaxreq_Id := l_payLoad ->> 'idRequest';
+
+	if l_ctaxreq_Id is null then
+	   p_ret_info := '"idRequest" is null or empty in payload';
+	   return;
+	end if;
+
+	-- проверка что уже l_ctaxreq_id был обработан
+	SELECT r.req_id
+	       INTO l_req_id
+	  FROM xxi.mi_req r
+	 WHERE r.inf_id = 10 AND r.ctaxreq_id = l_ctaxreq_id
+	 LIMIT 1;
+
+	if l_req_id is not null then
+	   p_ret_code := ret_ok;
+	   p_ret_info := 'already registered; req_id=' || l_req_id;
+	   return;
 	end if;
 
 	l_doc_Typ_Cod := replace( l_payLoad -> 'identityDocument' ->> 'docType', ' ', '' );
@@ -317,7 +321,7 @@ begin
 	   p_inf_id                => 10::numeric,
 	   p_correlation_id        => p_correlation_id,
 	   p_original_request_uuid => p_original_request_uuid,
-	   p_ctaxreq_id            => p_ctaxreq_id,
+	   p_ctaxreq_id            => l_ctaxreq_id,
 	   p_message_uuid          => p_message_uuid,
 	   p_status_cd             => 1::numeric
 	);

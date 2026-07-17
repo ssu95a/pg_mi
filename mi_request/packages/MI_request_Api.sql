@@ -155,7 +155,7 @@ CREATE FUNCTION create_Request (
    in p_itype                 numeric DEFAULT NULL,
    in p_i1                    numeric DEFAULT NULL,
    in p_i2                    numeric DEFAULT NULL,
-   in p_i3                    integer DEFAULT NULL
+   in p_i3                    numeric DEFAULT NULL
 )
    RETURNS 
       numeric
