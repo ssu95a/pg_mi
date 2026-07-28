@@ -191,10 +191,10 @@ declare
 
    cFunc constant varchar(50) := cPkg_Name || '.apply_Request'::varchar;
 
-	l_payLoad jsonb;
+	l_payLoad 		jsonb;
 
-	l_req_Id  numeric(12);
-	l_itm_Id  numeric(12);
+	l_req_Id  		numeric(12);
+	l_itm_Id  		numeric(12);
 
 	l_person_Id 	numeric(12);
 	l_person_J  	jsonb;
@@ -205,7 +205,7 @@ declare
 	l_doc_Ser		varchar;
 	l_doc_Num		varchar;
 
-   l_ctaxreq_id   varchar;
+   l_cTaxReq_Id   varchar;
 
 	l_update17Lnk  numeric := MI_prp.get_Inf_Property( 23, 'INF_23_UPDATE_17_LNK', '0' )::numeric;
 
@@ -216,43 +216,46 @@ begin
    p_ret_code := ret_Fail;
    p_ret_info := NULL;
 
+   <<main>>
+   begin
+
    if p_message_uuid is null then
       p_ret_info := 'p_message_uuid is null';
-      return;
+      exit main;
    end if;
 
    if p_request_time is null then
-      p_ret_info := 'p_request_time is null';
-      return;
+      p_ret_info := '"p_request_time" is null';
+      exit main;
    end if;
 
 	if p_original_request_uuid is null then
 	   p_ret_info := 'p_original_request_uuid is null';
-	   return;
+      exit main;
 	end if;
 
 
 	if p_payload_text is null or btrim(p_payload_text) = '' then
       p_ret_info := 'p_payload_text is null';
-      return;
+      exit main;
 	end if;
 
 	call MI_item_Result_Api.parse_Json_Payload( p_payload_text, l_payLoad, p_ret_code, p_ret_Info );
 
 	if p_ret_code <> ret_OK then
-		return;
+      exit main;
 	end if;
 
-	l_ctaxreq_Id := l_payLoad ->> 'idRequest';
+	l_ctaxreq_Id := btrim(l_payLoad ->> 'idRequest');
 
-	if l_ctaxreq_Id is null then
+	if l_ctaxreq_Id is null or l_ctaxreq_Id = '' then
 	   p_ret_info := '"idRequest" is null or empty in payload';
-	   return;
+      exit main;
 	end if;
 
 	-- проверка что уже l_ctaxreq_id был обработан
 	SELECT r.req_id
-	       INTO l_req_id
+	 	 INTO l_req_id
 	  FROM xxi.mi_req r
 	 WHERE r.inf_id = 10 AND r.ctaxreq_id = l_ctaxreq_id
 	 LIMIT 1;
@@ -260,7 +263,7 @@ begin
 	if l_req_id is not null then
 	   p_ret_code := ret_ok;
 	   p_ret_info := 'already registered; req_id=' || l_req_id;
-	   return;
+      exit main;
 	end if;
 
 	l_doc_Typ_Cod := replace( l_payLoad -> 'identityDocument' ->> 'docType', ' ', '' );
@@ -275,7 +278,7 @@ begin
 
 	if l_doc_Typ_Num is null then
 		p_ret_Info := 'Не удается по коду "' || l_doc_Typ_Cod  || '" определить тип ДУЛа в таблице pud'; 
-		return;
+      exit main;
 	end if;
 
 	/* Разбираем серию номер документа */
@@ -346,6 +349,10 @@ begin
 
 		p_ret_code := ret_OK;
 		p_ret_info := 'registered; req_id=' || l_req_Id || '; itm_id=' || l_itm_Id;
+
+	end main; -- end main
+
+	call MI_logger.exit_f( cLogger, cFunc, 'p_ret_code = ' || coalesce(p_ret_code::text, 'null') || ', p_ret_info = ' || coalesce(p_ret_info, 'null') );
 
 END;
 $procedure$

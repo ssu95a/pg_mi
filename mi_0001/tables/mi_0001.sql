@@ -5,25 +5,26 @@
 --
 CREATE TABLE IF NOT EXISTS xxi.mi_0001 (
 -- +---------------------------------------------------------------------------
--- |   column      |  type      |   null  | default 
+-- |     column     |    type    |   null   | default 
 -- +---------------------------------------------------------------------------
-      itm_id        numeric(12)   NOT NULL  DEFAULT nextval('xxi.s_mi_item'::regclass),
-      external_uuid uuid          NOT NULL  DEFAULT uuidv7(),
-      req_id        numeric(12)   NOT NULL,
+      itm_id         numeric(12)   NOT NULL   DEFAULT nextval('xxi.s_mi_item'::regclass),
+      external_uuid  uuid          NOT NULL   DEFAULT uuidv7(),
+      req_id         numeric(12)   NOT NULL,
 
-      person_id     numeric(12)   NOT NULL,
-      icusnum       numeric(12)   NOT NULL,
+      person_id      numeric(12)   NOT NULL,
+      icusnum        numeric(12)   NOT NULL,
 
-      created_at    timestamp     NOT NULL  DEFAULT current_timestamp,
+      created_at     timestamp     NOT NULL   DEFAULT current_timestamp,
 
-      inn           varchar(13)       NULL,
+      inn            varchar(13)       NULL,
       
-      ires_code     numeric(3)        NULL,
-      tres_time     timestamp         NULL,
-      cres_info     text              NULL,
-      message_uuid  uuid              NULL,
+            
+      ires_code      numeric(3)        NULL,
+      tres_time      timestamp         NULL,
+      cres_info      text              NULL,
+      message_uuid   uuid              NULL,
       -- код обработки при ошибке
-      error_code    varchar(100)      NULL
+      error_code     varchar(100)      NULL
 
 -- constraints
 -- PK
@@ -47,7 +48,7 @@ CREATE INDEX IF NOT EXISTS fx_mi_0001__person_id ON xxi.mi_0001 USING btree ( pe
 ;
 CREATE INDEX IF NOT EXISTS fx_mi_0001__icusnum ON xxi.mi_0001 USING btree ( icusnum ) TABLESPACE indexes
 ;
-CREATE INDEX IF NOT EXISTS ix_mi_0001__message_uuid ON xxi.mi_0001(message_uuid) WHERE message_uuid IS NOT NULL TABLESPACE indexes
+CREATE INDEX IF NOT EXISTS ix_mi_0001__message_uuid ON xxi.mi_0001(message_uuid) TABLESPACE indexes WHERE message_uuid IS NOT NULL
 ;
 
 -- Grants

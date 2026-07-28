@@ -5,16 +5,7 @@ CREATE FUNCTION __init__()
 AS
 $init$
 DECLARE
-   /*
-      Entry point логики вида сведений 0001
-      –аботает поверх:
-         - mi_req
-         - xxi.mi_0001
-         - xxi.v_mi_0001_req
-         - mi_request_Api
-         - mi_person_Api
-   */
-   
+
    cVersion     CONSTANT varchar(100) := '$id: {1.0.0} {27.05.2026}$';
 
    cPkg_Name    CONSTANT varchar(20 ) := 'mi_0001_Api'; 
@@ -393,7 +384,7 @@ $procedure$
    #package
 declare
 
-   l_lock_Handle     varchar(100);
+   l_lock_Handle      varchar(100);
 
    l_wait_Hour_Range  int4   := 72::int4; 
    l_cus_Hour_Range   int4   := MI_prp.get_Wsp_Property( 1, 'CUS_HOUR_RANGE',   '48' )::int4; 
