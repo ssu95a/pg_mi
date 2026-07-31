@@ -379,7 +379,7 @@ $function$
    Автоматический сбор и подготовка клиентов без ИНН для отправки
 */
 create procedure auto_Prepare ( 
-   in p_publish_Mbus int4
+   in p_publish_Mbus boolean DEFAULT false
 )
 as
 $procedure$ 
@@ -424,22 +424,22 @@ begin
 
    end;   
 
-   l_req_id := MI_0001_Api.create_Request( 13::numeric );
-
    for r in ( SELECT * FROM xxi.v_mi_0001_ca WHERE ( current_date - DCUSOPEN ) > make_interval( hours => l_cus_Hour_Range ))
    loop
 
       call MI_0001_Api.check_4_Prepare( r, l_handle_Not_Found, l_wait_Hour_Range, l_doCreate, l_ids4Remove, l_error_Count, l_result_Info );
 
-      if not l_doCreate then
-         continue;
+      continue when not l_doCreate;
+
+      if l_req_id is null then
+         l_req_id := MI_0001_Api.create_Request( 13::numeric );
       end if;
 
       l_itm_id := MI_0001_Api.create_Item( 13::numeric, l_req_id, r, l_ids4Remove );
 
    end loop;
 
-   if p_publish_Mbus > 0 then
+   if p_publish_Mbus and l_req_id is not null then
       CALL MBus_Api.send_Request( p_req_id => l_req_id );
    end if;
 
@@ -449,22 +449,66 @@ $procedure$
 
 /* */
 CREATE FUNCTION submit_Auto_Prepare (
-   IN p_send_mbus int DEFAULT 1::int4,
-   IN p_source  varchar DEFAULT NULL::varchar
+   IN p_publish_Mbus int4    DEFAULT 1::int4,
+   IN p_source       varchar DEFAULT NULL::varchar
 )
 RETURNS 
    bigint
-LANGUAGE 
+LANGUAGE
    plpgsql
+SECURITY
+   DEFINER
 AS
 $function$
    #package
 DECLARE
+   c_job_name CONSTANT text := 'MI_0001_AUTO_PREPARE';
    l_job_id bigint;
+   l_existing_publish int4;
 BEGIN
 
-   l_job_id := schedule.submit_Job( 
-      query    => format( 'CALL MI_0001_Api.auto_Prepare(%L)', p_send_mbus ),
+   if p_send_mbus NOT IN (0, 1) THEN
+      raise exception 'Invalid p_send_mbus value: %. Expected 0 or 1', p_send_mbus;
+   end if;
+
+   /* Блокировка освобождается при завершении транзакции. */
+   PERFORM pg_advisory_xact_lock( hashtext('MI_0001_API'), hashtext('AUTO_PREPARE') );
+
+   /* Ищем ожидающее или выполняющееся задание. */
+   SELECT
+      j.id,
+      NULLIF(j.params[1], '')::int4
+   INTO
+      l_job_id,
+      l_existing_publish
+   FROM 
+      schedule.job_status j
+  WHERE j.name = c_job_name
+    AND j.status::text IN ('submitted', 'processing')
+  ORDER BY j.id DESC LIMIT 1;
+
+   IF FOUND THEN
+
+      /*
+       * Нельзя вернуть prepare-only job, если новый запуск требует последующей публикации через m-bus.
+       */
+      IF l_existing_publish IS NOT NULL AND l_existing_publish <> p_send_mbus
+      THEN
+         RAISE EXCEPTION
+            'MI_0001 auto prepare job % already exists with p_send_mbus=%, requested=%',
+            l_job_id,
+            l_existing_publish,
+            p_send_mbus;
+      END IF;
+
+      /* Отрицательный Жоб ID означает, что новое задание не создавалось.*/
+      RETURN -1 * l_job_id;
+
+   END IF;  
+
+   l_job_id := schedule.submit_Job ( 
+      query    => format( 'CALL MI_0001_Api.auto_Prepare(%1::boolean)' ),
+      params   => array[p_publish_Mbus::text],
       name     => 'MI_0001_AUTO_PREPARE',
       comments => format( 'source=%s, send_mbus=%s', coalesce(p_source, 'UNKNOWN'), p_send_mbus )
    );
