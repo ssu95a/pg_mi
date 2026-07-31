@@ -449,65 +449,52 @@ $procedure$
 
 /* */
 CREATE PROCEDURE submit_Auto_Prepare (
-  OUT p_job_id       bigint,
-   IN p_publish_Mbus int4    DEFAULT 1::int4,
-   IN p_source       varchar DEFAULT NULL::varchar
+   OUT p_job_id       bigint,
+   IN  p_publish_Mbus int4    DEFAULT 1::int4,
+   IN  p_source       varchar DEFAULT NULL::varchar
 )
-LANGUAGE 
-   plpgsql
-SECURITY 
-   DEFINER
+LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = pg_catalog
 AS
-$function$
+$procedure$
    #package
 DECLARE
    c_job_name CONSTANT text := 'MI_0001_AUTO_PREPARE';
-
-   p_job_id           bigint;
-   l_existing_publish int4;
 BEGIN
 
    IF p_publish_Mbus NOT IN (0, 1) THEN
       RAISE EXCEPTION 'Invalid p_publish_mbus value: %. Expected 0 or 1', p_publish_Mbus;
    END IF;
 
-   PERFORM pg_advisory_xact_lock( hashtext('MI_0001_API'), hashtext('AUTO_PREPARE') );
+   PERFORM pg_advisory_xact_lock (
+      hashtext('MI_0001_API'),
+      hashtext('AUTO_PREPARE')
+   );
 
-   SELECT
-      j.id,
-      NULLIF(j.params[1], '')::int4
-   INTO
-      p_job_id,
-      l_existing_publish
-   FROM schedule.job_status j
-   WHERE j.name = c_job_name
-     AND j.status::text IN ('submitted', 'processing')
-   ORDER BY j.id DESC
-   LIMIT 1;
+   SELECT j.id
+          INTO p_job_id
+     FROM schedule.job_status j
+    WHERE j.name = c_job_name AND j.status::text IN ('submitted', 'processing')
+    ORDER 
+         BY j.id DESC
+    LIMIT 1;
 
    IF FOUND THEN
-      p_job_id := -1 * p_job_id;
+      p_job_id := -p_job_id;
       RETURN;
    END IF;
 
-   p_job_id := schedule.submit_job(
-      query =>
-         'CALL MI_0001_Api.auto_Prepare($1::boolean)',
-      params =>
-         ARRAY[p_publish_Mbus::text],
-      name =>
-         c_job_name,
-      comments =>
-         format(
-            'source=%s, publish_mbus=%s',
-            COALESCE(p_source, 'UNKNOWN'),
-            p_publish_Mbus
-         )
+   p_job_id := schedule.submit_job (
+      query  => 'CALL MI_0001_Api.auto_Prepare($1::boolean)',
+      params => ARRAY[p_publish_Mbus::text],
+      name   => c_job_name,
+      comments 
+             => format( 'source=%s, publish_mbus=%s', COALESCE(p_source, 'UNKNOWN'), p_publish_Mbus )
    );
 
 END;
-$function$
+$procedure$
 
 
 /* Создает персональный запрос для получения ИНН для физ лица */
