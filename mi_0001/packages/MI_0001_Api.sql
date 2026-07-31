@@ -454,63 +454,56 @@ CREATE FUNCTION submit_Auto_Prepare (
 )
 RETURNS 
    bigint
-LANGUAGE
+LANGUAGE 
    plpgsql
-SECURITY
+SECURITY 
    DEFINER
+SET search_path = pg_catalog
 AS
 $function$
    #package
 DECLARE
    c_job_name CONSTANT text := 'MI_0001_AUTO_PREPARE';
-   l_job_id bigint;
+
+   l_job_id           bigint;
    l_existing_publish int4;
 BEGIN
 
-   if p_send_mbus NOT IN (0, 1) THEN
-      raise exception 'Invalid p_send_mbus value: %. Expected 0 or 1', p_send_mbus;
-   end if;
+   IF p_publish_Mbus NOT IN (0, 1) THEN
+      RAISE EXCEPTION 'Invalid p_publish_mbus value: %. Expected 0 or 1', p_publish_Mbus;
+   END IF;
 
-   /* Блокировка освобождается при завершении транзакции. */
    PERFORM pg_advisory_xact_lock( hashtext('MI_0001_API'), hashtext('AUTO_PREPARE') );
 
-   /* Ищем ожидающее или выполняющееся задание. */
    SELECT
       j.id,
       NULLIF(j.params[1], '')::int4
    INTO
       l_job_id,
       l_existing_publish
-   FROM 
-      schedule.job_status j
-  WHERE j.name = c_job_name
-    AND j.status::text IN ('submitted', 'processing')
-  ORDER BY j.id DESC LIMIT 1;
+   FROM schedule.job_status j
+   WHERE j.name = c_job_name
+     AND j.status::text IN ('submitted', 'processing')
+   ORDER BY j.id DESC
+   LIMIT 1;
 
    IF FOUND THEN
-
-      /*
-       * Нельзя вернуть prepare-only job, если новый запуск требует последующей публикации через m-bus.
-       */
-      IF l_existing_publish IS NOT NULL AND l_existing_publish <> p_send_mbus
-      THEN
-         RAISE EXCEPTION
-            'MI_0001 auto prepare job % already exists with p_send_mbus=%, requested=%',
-            l_job_id,
-            l_existing_publish,
-            p_send_mbus;
-      END IF;
-
-      /* Отрицательный Жоб ID означает, что новое задание не создавалось.*/
       RETURN -1 * l_job_id;
+   END IF;
 
-   END IF;  
-
-   l_job_id := schedule.submit_Job ( 
-      query    => format( 'CALL MI_0001_Api.auto_Prepare(%1::boolean)' ),
-      params   => array[p_publish_Mbus::text],
-      name     => 'MI_0001_AUTO_PREPARE',
-      comments => format( 'source=%s, send_mbus=%s', coalesce(p_source, 'UNKNOWN'), p_send_mbus )
+   l_job_id := schedule.submit_job(
+      query =>
+         'CALL MI_0001_Api.auto_Prepare($1::boolean)',
+      params =>
+         ARRAY[p_publish_Mbus::text],
+      name =>
+         c_job_name,
+      comments =>
+         format(
+            'source=%s, publish_mbus=%s',
+            COALESCE(p_source, 'UNKNOWN'),
+            p_publish_Mbus
+         )
    );
 
    RETURN l_job_id;
