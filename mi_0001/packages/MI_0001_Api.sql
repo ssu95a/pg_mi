@@ -448,12 +448,11 @@ $procedure$
 
 
 /* */
-CREATE FUNCTION submit_Auto_Prepare (
+CREATE PROCEDURE submit_Auto_Prepare (
+  OUT p_job_id       bigint,
    IN p_publish_Mbus int4    DEFAULT 1::int4,
    IN p_source       varchar DEFAULT NULL::varchar
 )
-RETURNS 
-   bigint
 LANGUAGE 
    plpgsql
 SECURITY 
@@ -465,7 +464,7 @@ $function$
 DECLARE
    c_job_name CONSTANT text := 'MI_0001_AUTO_PREPARE';
 
-   l_job_id           bigint;
+   p_job_id           bigint;
    l_existing_publish int4;
 BEGIN
 
@@ -479,7 +478,7 @@ BEGIN
       j.id,
       NULLIF(j.params[1], '')::int4
    INTO
-      l_job_id,
+      p_job_id,
       l_existing_publish
    FROM schedule.job_status j
    WHERE j.name = c_job_name
@@ -488,10 +487,11 @@ BEGIN
    LIMIT 1;
 
    IF FOUND THEN
-      RETURN -1 * l_job_id;
+      p_job_id := -1 * p_job_id;
+      RETURN;
    END IF;
 
-   l_job_id := schedule.submit_job(
+   p_job_id := schedule.submit_job(
       query =>
          'CALL MI_0001_Api.auto_Prepare($1::boolean)',
       params =>
@@ -505,8 +505,6 @@ BEGIN
             p_publish_Mbus
          )
    );
-
-   RETURN l_job_id;
 
 END;
 $function$
