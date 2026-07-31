@@ -378,7 +378,9 @@ $function$
 /*
    Автоматический сбор и подготовка клиентов без ИНН для отправки
 */
-create procedure auto_Prepare( )
+create procedure auto_Prepare ( 
+   in p_publish_Mbus int4
+)
 as
 $procedure$ 
    #package
@@ -397,7 +399,7 @@ declare
 
    r                  xxi.v_mi_0001_ca%rowtype;
 
-   l_req_Id           numeric;  
+   l_req_id           numeric;
    l_itm_id           numeric;
 
    l_result_Info      varchar;
@@ -422,7 +424,7 @@ begin
 
    end;   
 
-   l_req_Id := MI_0001_Api.create_Request( 13::numeric );
+   l_req_id := MI_0001_Api.create_Request( 13::numeric );
 
    for r in ( SELECT * FROM xxi.v_mi_0001_ca WHERE ( current_date - DCUSOPEN ) > make_interval( hours => l_cus_Hour_Range ))
    loop
@@ -433,12 +435,44 @@ begin
          continue;
       end if;
 
-      l_itm_id := MI_0001_Api.create_Item( 13::numeric, l_req_Id, r, l_ids4Remove );
+      l_itm_id := MI_0001_Api.create_Item( 13::numeric, l_req_id, r, l_ids4Remove );
 
    end loop;
 
+   if p_publish_Mbus > 0 then
+      CALL MBus_Api.send_Request( p_req_id => l_req_id );
+   end if;
+
 end;  
 $procedure$ 
+
+
+/* */
+CREATE FUNCTION submit_Auto_Prepare (
+   IN p_send_mbus int DEFAULT 1::int4,
+   IN p_source  varchar DEFAULT NULL::varchar
+)
+RETURNS 
+   bigint
+LANGUAGE 
+   plpgsql
+AS
+$function$
+   #package
+DECLARE
+   l_job_id bigint;
+BEGIN
+
+   l_job_id := schedule.submit_Job( 
+      query    => format( 'CALL MI_0001_Api.auto_Prepare(%L)', p_send_mbus ),
+      name     => 'MI_0001_AUTO_PREPARE',
+      comments => format( 'source=%s, send_mbus=%s', coalesce(p_source, 'UNKNOWN'), p_send_mbus )
+   );
+
+   RETURN l_job_id;
+
+END;
+$function$
 
 
 /* Создает персональный запрос для получения ИНН для физ лица */
