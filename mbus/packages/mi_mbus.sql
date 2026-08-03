@@ -472,9 +472,9 @@ DECLARE
    l_result_code numeric;
    l_result_corr varchar;
 
-   l_call_uuid uuid := gen_random_uuid();
+   l_call_uuid   uuid := gen_random_uuid();
 
-   l_called_at timestamptz := clock_timestamp();
+   l_called_at   timestamptz := clock_timestamp();
 
 BEGIN
 
@@ -483,8 +483,13 @@ BEGIN
     */
    l_action     := lower( btrim(p_action) );
    l_parameters := coalesce( p_parameters, '{}'::jsonb );
-   l_scope      := CASE WHEN p_inf_id IS NULL THEN 'XXL' ELSE 'INF' END;
-
+   l_scope :=
+      CASE
+         WHEN p_req_id IS NOT NULL THEN 'REQUEST'
+         WHEN p_inf_id IS NOT NULL THEN 'INF'
+         ELSE 'XXL'
+      END;
+      
    /*
     * Ѕезопасно получаем только список ключей.
     *
@@ -511,21 +516,21 @@ BEGIN
          p_parameters =>
          jsonb_build_object(
             'scope',           l_scope,
-            'inf_id',          p_inf_id
+            'inf_id',          p_inf_id,
             'req_id',          p_req_id,
             'action',          l_action,
             'call_uuid',       l_call_uuid,
             'parameter_keys',  l_parameter_keys,
             'parameter_count', l_parameter_count
          )::text,
-         p_req_id =>NULL::numeric
+         p_req_id =>p_req_id
    );
 
    /*
     * NULL означает глобальную команду XXL.
     * Ќулевые и отрицательные значени€ запрещены:
     */
-   IF p_inf_id IS NOT NULL AND not MI_request_Api.exists_Inf( p_inf_id )
+   IF p_inf_id IS NOT NULL AND p_inf_id <= 0
    THEN
 
       CALL MI_resultCtx.raise_fail( p_result_code => c_err_Command_Invalid_Inf, p_result_info => 'p_inf_id must be positive or null',
@@ -674,6 +679,7 @@ BEGIN
          jsonb_build_object(
             'scope',           l_scope,
             'inf_id',          p_inf_id,
+            'req_id',          p_req_id,
             'action',          l_action,
             'call_uuid',       l_call_uuid,
             'request_size',    octet_length(l_send_x),
@@ -681,7 +687,7 @@ BEGIN
             'parameter_count', l_parameter_count
          )::text,
          p_inf_id => p_inf_id,
-         p_req_id => NULL::numeric
+         p_req_id => p_req_id
    );
 
    /*
@@ -715,6 +721,7 @@ BEGIN
          jsonb_build_object(
             'scope',         l_scope,
             'inf_id',        p_inf_id,
+            'req_id',        p_req_id,
             'action',        l_action,
             'call_uuid',     l_call_uuid,
             'bus_corr_id',   l_result_corr,
@@ -723,7 +730,7 @@ BEGIN
          )::text,
 
       p_inf_id => p_inf_id,
-      p_req_id => NULL::numeric
+      p_req_id => p_req_id
    );
 
    /*
