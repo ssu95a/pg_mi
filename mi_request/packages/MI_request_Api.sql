@@ -16,7 +16,7 @@ DECLARE
    ret_OK         Constant int4    := 0;
    ret_Fail       Constant int4    := -1;
 
-   cStatus_New     CONSTANT numeric := 0;
+   cStatus_New    CONSTANT numeric := 0;
    cStatus_Busy   CONSTANT numeric := 2;
    cStatus_Sent   CONSTANT numeric := 3;
    cStatus_Done   CONSTANT numeric := 1;
@@ -205,6 +205,31 @@ BEGIN
    );
    
    return l_req_id;
+   
+END;
+$function$
+
+/* Существует ли request */
+CREATE FUNCTION exists_Inf (
+   in p_inf_id numeric
+)
+   RETURNS 
+      boolean
+AS
+$function$
+   #package
+DECLARE
+   l_dummy int;
+BEGIN
+
+   SELECT 1
+          INTO l_dummy
+     FROM mi_inf
+    WHERE 
+          inf_Id = p_inf_id;
+
+   RETURN found;
+
 END;
 $function$
 
