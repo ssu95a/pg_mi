@@ -140,9 +140,6 @@ COMMENT ON COLUMN xxi.mi_log.req_id IS
 COMMENT ON COLUMN xxi.mi_log.itm_id IS
    'Идентификатор элемента запроса'
 ;
-COMMENT ON COLUMN xxi.mi_log.itm_id IS
-   'Идентификатор элемента запроса'
-;
 COMMENT ON COLUMN xxi.mi_log.rsp_id IS
    'Id ответа на запрос'
 ;

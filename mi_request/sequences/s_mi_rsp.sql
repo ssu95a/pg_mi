@@ -5,3 +5,5 @@ CREATE SEQUENCE IF NOT EXISTS xxi.s_mi_rsp
             NO MAXVALUE
                CACHE 20
 ;
+ALTER SEQUENCE xxi.s_mi_rsp OWNER TO "XXI"
+;
