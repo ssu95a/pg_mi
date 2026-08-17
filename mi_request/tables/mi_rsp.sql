@@ -45,16 +45,15 @@ CREATE TABLE IF NOT EXISTS xxi.mi_rsp
 )
 TABLESPACE users
 ;
-create index ix_mi_rsp__req_itm
+create index if not exists ix_mi_rsp__req_itm
    on xxi.mi_rsp(req_id, itm_id)
       tablespace indexes
 ;
-
 create unique index if not exists ux_mi_rsp__rsp_uuid
    on xxi.mi_rsp(rsp_uuid)
       tablespace indexes
 ;
-create index  if not exists ix_mi_rsp__ready
+create index if not exists ix_mi_rsp__ready
    on xxi.mi_rsp(created_at, rsp_id)
       tablespace indexes
          where status_cd = 1

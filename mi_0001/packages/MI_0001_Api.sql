@@ -578,7 +578,7 @@ begin
 
    if l_valInn is null then
       l_result.cRes_info := 'Данные не найдены';
-      l_result.iRes_Code := 'NO_DATA_FOUND';
+      l_result.iRes_Code := 1; -- 'NO_DATA_FOUND';
    end if;
 
    update xxi.mi_0001 

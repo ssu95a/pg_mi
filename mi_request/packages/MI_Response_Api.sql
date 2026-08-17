@@ -104,8 +104,8 @@ BEGIN
          p_inf_id        => NULL::numeric,
          p_req_id        => p_req_id,
          p_itm_id        => p_itm_id,
+         p_rsp_id        => l_rsp_id;
          p_action_cd     => 'create_Response',
-         p_context_value => l_rsp_id::varchar,
          p_object_name   => cPkg_Name
       );
 
@@ -149,15 +149,15 @@ BEGIN
 
       p_res_Code := ret_OK;
 
-      CALL MI_logger.info(
+      CALL MI_logger.info (
          p_logger_name   => cLogger,
          p_message_text  => 'Ответ готов к отправке',
          p_inf_id        => NULL::numeric,
          p_req_id        => l_req_id,
          p_itm_id        => l_itm_id,
+         p_rsp_id        => p_rsp_id;
          p_details_text  => NULL::text,
          p_action_cd     => cAction_Name,
-         p_context_value => null::varchar,
          p_object_name   => cPkg_Name
       );
 
@@ -190,15 +190,15 @@ BEGIN
 
    END IF;
 
-   CALL MI_logger.info(
+   CALL MI_logger.info (
       p_logger_name   => cLogger,
       p_message_text  => 'to_Ready rejected',
       p_inf_id        => NULL::numeric,
       p_req_id        => l_req_id,
       p_itm_id        => l_itm_id,
+      p_rsp_id        => p_rsp_id;
       p_details_text  => p_res_Info,
       p_action_cd     => cAction_Name,
-      p_context_value => p_rsp_id::varchar,
       p_object_name   => cPkg_Name
    );
 
