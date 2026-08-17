@@ -568,26 +568,23 @@ $function$
    #package
 declare
 
-   cFunc    varchar := cPkg_Name || '.map_Item_Result';
+   -- cFunc varchar := cPkg_Name || '.map_Item_Result';
 
    l_valInn varchar;
-   l_valRes numeric;
    l_result MI_Item_Result_Api.Item_Result;
 begin
 
-   l_valRes := l_payload ->> 'TreatmentCode';
+   l_valInn := l_payload ->> 'innPhP';
 
-   if l_valRes is null then
-      l_valInn := l_payload ->> 'PhysicalPersonINN';
-   else
+   if l_valInn is null then
       l_result.cRes_info := 'Данные не найдены';
+      l_result.iRes_Code := 'NO_DATA_FOUND';
    end if;
 
    update xxi.mi_0001 
       set inn    = l_valInn
-    where itm_Id = p_itm_Id; 
-
-   l_result.iRes_Code := l_valRes;
+    where 
+          itm_Id = p_itm_Id; 
 
    return l_result;
 

@@ -34,6 +34,7 @@ CREATE UNLOGGED TABLE IF NOT EXISTS xxi.mi_log
 
         req_id        numeric(12),
         itm_id        numeric(12),
+        rsp_id        numeric(12),
 
         person_id     numeric(12),
         icusnum       numeric(12),
@@ -53,10 +54,14 @@ CREATE UNLOGGED TABLE IF NOT EXISTS xxi.mi_log_1
         FOR VALUES IN (1)
             TABLESPACE USERS
 ;
-
 CREATE UNLOGGED TABLE IF NOT EXISTS xxi.mi_log_7
     PARTITION OF xxi.mi_log
         FOR VALUES IN (7)
+            TABLESPACE USERS
+;
+CREATE UNLOGGED TABLE IF NOT EXISTS xxi.mi_log_3
+    PARTITION OF xxi.mi_log
+        FOR VALUES IN (3)
             TABLESPACE USERS
 ;
 CREATE UNLOGGED TABLE IF NOT EXISTS xxi.mi_log_23
@@ -133,7 +138,13 @@ COMMENT ON COLUMN xxi.mi_log.req_id IS
     'Идентификатор запроса'
 ;
 COMMENT ON COLUMN xxi.mi_log.itm_id IS
-    'Идентификатор элемента запроса'
+   'Идентификатор элемента запроса'
+;
+COMMENT ON COLUMN xxi.mi_log.itm_id IS
+   'Идентификатор элемента запроса'
+;
+COMMENT ON COLUMN xxi.mi_log.rsp_id IS
+   'Id ответа на запрос'
 ;
 COMMENT ON COLUMN xxi.mi_log.person_id IS
     'Идентификатор физлица'
