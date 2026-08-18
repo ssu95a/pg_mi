@@ -98,16 +98,16 @@ BEGIN
       cStatus_New
    );
 
-      CALL MI_logger.info(
-         p_logger_name   => cLogger,
-         p_message_text  => 'Сформирован ответ на позицию запроса',
-         p_inf_id        => NULL::numeric,
-         p_req_id        => p_req_id,
-         p_itm_id        => p_itm_id,
-         p_rsp_id        => l_rsp_id,
-         p_action_cd     => 'create_Response',
-         p_object_name   => cPkg_Name
-      );
+   CALL MI_logger.info(
+      p_logger_name   => cLogger,
+      p_message_text  => 'Сформирован ответ на позицию запроса',
+      p_inf_id        => NULL::numeric,
+      p_req_id        => p_req_id,
+      p_itm_id        => p_itm_id,
+      p_rsp_id        => l_rsp_id,
+      p_action_cd     => 'create_Response',
+      p_object_name   => cPkg_Name
+   );
 
    RETURN l_rsp_id;
 
@@ -206,4 +206,99 @@ END;
 $procedure$
 
 
+/* Изменить статус ответа на "Отправлен" */
+CREATE PROCEDURE to_Sent (
+   in p_rsp_id   numeric,
+  out p_res_Code int4,
+  out p_res_Info varchar
+)
+AS
+$procedure$
+   #package
+DECLARE
+   cAction_Name constant varchar(20) := 'to_Sent';
+
+   l_prev_status_cd numeric;
+   l_req_id         numeric;
+   l_itm_id         numeric;
+
+BEGIN
+
+   p_res_Code := ret_Fail;
+   p_res_Info := NULL;
+
+   UPDATE xxi.mi_rsp
+      SET status_cd = cStatus_Sent,
+          sent_at   = clock_timestamp()
+    WHERE rsp_id    = p_rsp_id
+      AND status_cd = cStatus_Ready
+   RETURNING req_id,
+             itm_id
+        INTO l_req_id,
+             l_itm_id;
+
+   IF FOUND THEN
+
+      p_res_Code := ret_OK;
+
+      CALL MI_logger.info (
+         p_logger_name   => cLogger,
+         p_message_text  => 'Ответ успешно отправлен',
+         p_inf_id        => NULL::numeric,
+         p_req_id        => l_req_id,
+         p_itm_id        => l_itm_id,
+         p_rsp_id        => p_rsp_id,
+         p_details_text  => NULL::text,
+         p_action_cd     => cAction_Name,
+         p_object_name   => cPkg_Name
+      );
+
+      RETURN;
+
+   END IF;
+
+
+   SELECT r.status_cd,
+          r.req_id,
+          r.itm_id
+     INTO l_prev_status_cd,
+          l_req_id,
+          l_itm_id
+     FROM xxi.mi_rsp r
+    WHERE r.rsp_id = p_rsp_id;
+
+
+   IF NOT FOUND THEN
+      p_res_Info := 'Не найден ответ с rsp_id = ' || p_rsp_id;
+
+   ELSIF l_prev_status_cd = cStatus_New THEN
+      p_res_Info := 'Невозможно перевести ответ в статус "Отправлен". Ответ еще не готов к отправке.';
+
+   ELSIF l_prev_status_cd = cStatus_Sent THEN
+      p_res_Info := 'Невозможно перевести ответ в статус "Отправлен". Ответ уже успешно отправлен.';
+
+   ELSIF l_prev_status_cd = cStatus_Error THEN
+      p_res_Info := 'Невозможно перевести ответ в статус "Отправлен". Ответ находится в ошибочном статусе.';
+
+   ELSE
+      p_res_Info := 'Невозможно перевести ответ в статус "Отправлен". Текущий статус: ' || coalesce(l_prev_status_cd::varchar, '<NULL>');
+
+   END IF;
+
+   CALL MI_logger.info (
+      p_logger_name   => cLogger,
+      p_message_text  => 'to_Sent rejected',
+      p_inf_id        => NULL::numeric,
+      p_req_id        => l_req_id,
+      p_itm_id        => l_itm_id,
+      p_rsp_id        => p_rsp_id,
+      p_details_text  => p_res_Info,
+      p_action_cd     => cAction_Name,
+      p_object_name   => cPkg_Name
+   );
+
 END;
+$procedure$
+
+
+; -- end_Of_Package

@@ -42,6 +42,20 @@ DECLARE
    c_err_Command_Response_Parse    CONSTANT varchar(200) := 'MI_MBUS.SEND_COMMAND#XXL_RESPONSE_PARSE_ERROR';
    c_err_Command_Unexpected        CONSTANT varchar(200) := 'MI_MBUS.SEND_COMMAND#UNEXPECTED';   
 
+
+   /* Коды ошибок при отправке ответа на запрос MI_mbus.send_response errors */
+   c_err_Rsp_Not_Found       CONSTANT varchar(200) := 'MI_MBUS.SEND_RESPONSE#RESPONSE_NOT_FOUND';
+   c_err_Rsp_Bad_Status      CONSTANT varchar(200) := 'MI_MBUS.SEND_RESPONSE#BAD_STATUS';
+   c_err_Rsp_Bus_Return      CONSTANT varchar(200) := 'MI_MBUS.SEND_RESPONSE#X_TO_XXL_TRANSPORT_ERROR';
+   c_err_Rsp_Empty_Response  CONSTANT varchar(200) := 'MI_MBUS.SEND_RESPONSE#XXL_RESPONSE_EMPTY';
+   c_err_Rsp_Response_Parse  CONSTANT varchar(200) := 'MI_MBUS.SEND_RESPONSE#XXL_RESPONSE_PARSE_ERROR';
+   c_err_Rsp_Unexpected      CONSTANT varchar(200) := 'MI_MBUS.SEND_RESPONSE#UNEXPECTED';
+   /* Допустимые статусы ответов */
+   cRsp_Status_New    CONSTANT numeric := 0;
+   cRsp_Status_Ready  CONSTANT numeric := 1;
+   cRsp_Status_Sent   CONSTANT numeric := 2;
+   cRsp_Status_Error  CONSTANT numeric := -1;
+
 BEGIN
    RAISE DEBUG 'Package "mi_mbus" - % - initialized', cVersion;
 END;
@@ -449,10 +463,6 @@ DECLARE
 
    /*
     * Настройки транспорта.
-    *
-    * Используются отдельные переменные, а не record,
-    * поскольку для глобальной команды строка mi_inf
-    * не загружается.
     */
    l_gate_alias      varchar;
    l_request_queue   varchar;
@@ -492,10 +502,6 @@ BEGIN
       
    /*
     * Безопасно получаем только список ключей.
-    *
-    * jsonb_object_keys вызывается только для JSON object,
-    * чтобы некорректный тип параметров был обработан ниже
-    * как структурированная ошибка контракта.
     */
    IF jsonb_typeof(l_parameters) = 'object' THEN
 
@@ -527,8 +533,7 @@ BEGIN
    );
 
    /*
-    * NULL означает глобальную команду XXL.
-    * Нулевые и отрицательные значения запрещены:
+    * NULL означает глобальную команду XXL. Нулевые и отрицательные значения запрещены:
     */
    IF p_inf_id IS NOT NULL AND p_inf_id <= 0
    THEN
@@ -606,9 +611,7 @@ BEGIN
 
    /*
     * Глобальная команда адресована XXL целиком.
-    *
-    * Она не связана с записью xxi.mi_inf, поэтому
-    * используются общие очереди и системные настройки.
+    * Она не связана с записью xxi.mi_inf, используются общие очереди и системные настройки.
     */
    ELSE
 
@@ -692,10 +695,6 @@ BEGIN
 
    /*
     * Синхронный request/reply транспортного уровня.
-    *
-    * Это не означает, что прикладная команда выполняется
-    * синхронно. Например, auto_prepare только ставит
-    * фоновое задание и возвращает job_id.
     */
    CALL cbs_Bus_X.query_Bus_Text(
       cSqueue_name =>l_request_queue::varchar,
@@ -734,10 +733,8 @@ BEGIN
    );
 
    /*
-    * Обработка ошибки Multi-Bus
-    * фиксируется сам факт ошибки,
-    * никаких действий не производится -
-    * тк не ясно выполнилась в XXL команда или нет
+    * Обработка ошибки Multi-Bus фиксируется сам факт ошибки,
+    * никаких действий не производится - тк не ясно выполнилась в XXL команда или нет
     */
    IF coalesce( l_result_code, ret_Fail ) <> ret_OK
    THEN
@@ -767,8 +764,7 @@ BEGIN
    END IF;
 
    /*
-    * Транспортный вызов завершился успешно,
-    * но тело XXLResponse отсутствует.
+    * Транспортный вызов завершился успешно, но тело XXLResponse отсутствует.
     */
    IF nullif( btrim(l_result_x),'') IS NULL
    THEN
@@ -789,7 +785,7 @@ BEGIN
    END IF;
 
    /*
-    * Разбор XXLResponse,
+    * Разбор XXLResponse
     */
    BEGIN
       p_result := MI_resultCtx.result_from_xml( l_result_x );
@@ -876,9 +872,7 @@ EXCEPTION
          l_error_Text := TS.WhenOthersError( cAction_Name, ex );
 
       /*
-       * Как и send_request, процедура не пробрасывает
-       * исключение наружу.
-       *
+       * Как и send_request, процедура не пробрасывает исключение наружу.
        * Любая ошибка преобразуется в exec_Result.
        */
       p_result :=
@@ -890,8 +884,7 @@ EXCEPTION
          );
 
       /*
-       * MI001 означает структурированную ошибку,
-       * сформированную MI_resultCtx.raise_fail.
+       * MI001 означает структурированную ошибку, сформированную MI_resultCtx.raise_fail.
        *
        * Для остальных исключений задаётся локальный
        * result_code процедуры.
@@ -904,9 +897,7 @@ EXCEPTION
       END IF;
 
       /*
-       * Добавляем корреляционный контекст независимо
-       * от типа исключения.
-       *
+       * Добавляем контекст независимо от типа исключения.
        * Значения p_parameters не включаются.
        */
       p_result.parameters := coalesce( p_result.parameters, '{}'::jsonb )
@@ -937,7 +928,434 @@ EXCEPTION
 
    END;
 END;
-$procedure$;
+$procedure$
+
+
+/*
+ * Отправка business response в XXL.
+ *
+ * Важно:
+ *   READY -> можно передавать в XXL
+ *   SENT  -> успех, те уже был отправлен, не считаем ошибкой
+ *   остальные статусы -> ошибка
+ *
+ * send_Response сам НЕ вызывает MI_Response_Api.to_Sent().
+ * После успешной публикации это делает XXL.
+ */
+CREATE PROCEDURE send_response (
+   IN  p_rsp_id numeric,
+   OUT p_result MI_resultCtx.exec_Result
+)
+AS
+$procedure$
+   #package
+DECLARE
+
+   cAction_Name CONSTANT varchar(50) := cPkg_Name || '.send_response';
+
+   r_response record;
+
+   l_result_info varchar;
+   l_result_x    text;
+   l_result_code numeric;
+   l_result_corr varchar;
+
+   l_send_x text;
+
+   l_call_uuid uuid        := gen_random_uuid();
+   l_called_at timestamptz := clock_timestamp();
+
+   l_inf_id numeric;
+   l_req_id numeric;
+   l_itm_id numeric;
+
+BEGIN
+
+   CALL MI_logger.enter_f( p_logger_name   => cLogger, p_function_name => cAction_Name, p_message_text  => 'Sending business response to ' || cMultiBus_Gate,
+                           p_parameters    => jsonb_build_object( 'rsp_id',    p_rsp_id, 'call_uuid', l_call_uuid )::text, p_rsp_id => p_rsp_id );
+
+   IF p_rsp_id IS NULL THEN
+      CALL MI_resultCtx.raise_fail( p_result_code => c_err_Rsp_Not_Found, p_result_info => 'p_rsp_id is required' );
+   END IF;
+
+
+   /*
+    * Загружаем response + request + transport context.
+    */
+   BEGIN
+
+      SELECT
+         s.rsp_id,
+         s.req_id,
+         s.itm_id,
+         s.rsp_uuid,
+         s.status_cd,
+
+         r.inf_id,
+         r.correlation_id,
+         r.original_request_uuid,
+
+         i.wsp_id,
+         i.gate_alias,
+         coalesce(i.request_queue,  'xxi_pg_out') AS request_queue,
+         coalesce(i.response_queue, 'xxi_pg_in')  AS response_queue,
+         i.request_ttl_ms
+
+      INTO STRICT
+         r_response
+
+      FROM xxi.mi_rsp s
+      JOIN xxi.mi_req r
+        ON r.req_id = s.req_id
+      JOIN xxi.mi_inf i
+        ON i.inf_id = r.inf_id
+
+      WHERE s.rsp_id = p_rsp_id;
+
+
+      l_inf_id := r_response.inf_id;
+      l_req_id := r_response.req_id;
+      l_itm_id := r_response.itm_id;
+
+   EXCEPTION
+      WHEN NO_DATA_FOUND THEN
+           CALL MI_resultCtx.raise_fail( p_result_code => c_err_Rsp_Not_Found, p_result_info => 'Response not found in xxi.mi_rsp: ' || p_rsp_id::varchar, p_parameters  => jsonb_build_object( 'rsp_id', p_rsp_id ) );
+   END;
+
+
+   /*
+    * SENT - успех. был отправлен ранее, не считаем ошибкой
+    */
+   IF r_response.status_cd = cRsp_Status_Sent THEN
+
+      p_result := MI_resultCtx.OK( p_result_code => c_res_Already_Sent, p_result_info => 'Response is already sent', 
+                                   p_parameters  => jsonb_build_object( 'rsp_id', p_rsp_id,'req_id', r_response.req_id,  'itm_id', r_response.itm_id, 'status_cd', r_response.status_cd ) );
+
+      CALL MI_logger.log_exec_result(
+         p_logger_name   => cLogger,
+         p_result        => p_result,
+         p_inf_id        => r_response.inf_id,
+         p_req_id        => r_response.req_id,
+         p_itm_id        => r_response.itm_id,
+         p_rsp_id        => p_rsp_id,
+         p_action_cd     => 'send_state',
+         p_context_value => p_result.result_code,
+         p_object_name   => cAction_Name
+      );
+
+      RETURN;
+
+   END IF;
+
+
+   /*
+    * В XXL можно отправлять только со статусом READY.
+    */
+   IF r_response.status_cd <> cRsp_Status_Ready THEN
+
+      CALL MI_resultCtx.raise_fail(
+         p_result_code => c_err_Rsp_Bad_Status, p_result_info => 'Invalid response status for send',
+         p_parameters  => jsonb_build_object( 'rsp_id', p_rsp_id, 'req_id', r_response.req_id, 'itm_id', r_response.itm_id, 'status_cd', r_response.status_cd ) 
+      );
+
+   END IF;
+
+
+   /*
+    * Transport settings.
+    */
+   IF r_response.gate_alias IS NULL THEN
+      r_response.gate_alias := MI_prp.get_sys_property( 'MBUS_GATE', cMultiBus_Gate )::varchar;
+   END IF;
+
+   IF r_response.request_ttl_ms IS NULL THEN
+      r_response.request_ttl_ms := MI_prp.get_sys_property( 'MBUS_REQUEST_TIMEOUT', '30000' )::numeric;
+   END IF;
+
+
+   /*
+    * Команда XXL:
+    *
+    * action       = send
+    * message_type = response
+    *
+    * external_uuid для response = mi_rsp.rsp_uuid.
+    */
+   SELECT xmlserialize(
+      content xmlelement(
+         name "XXLRequest",
+
+         xmlattributes(
+            '1.0'
+               AS "version",
+
+            'send'
+               AS "action",
+
+            'response'
+               AS "message_type",
+
+            r_response.rsp_id::varchar
+               AS "rsp_id",
+
+            r_response.req_id::varchar
+               AS "req_id",
+
+            r_response.itm_id::varchar
+               AS "itm_id",
+
+            r_response.inf_id::varchar
+               AS "inf_id",
+
+            r_response.rsp_uuid::text
+               AS "external_uuid",
+
+            r_response.original_request_uuid::text
+               AS "original_request",
+
+            r_response.correlation_id::text
+               AS "correlation_id",
+
+            l_call_uuid::text
+               AS "call_uuid",
+
+            to_char(
+               l_called_at,
+               'YYYY-MM-DD"T"HH24:MI:SS.MS TZH:TZM'
+            )
+               AS "timestamp"
+         )
+      )
+      AS text
+   )
+   INTO l_send_x;
+
+
+   /*
+    * Полный XML в лог не пишем.
+    */
+   CALL MI_logger.variable_Value(
+      p_logger_name   => cLogger,
+      p_variable_name => 'XXLResponseCommand.meta',
+      p_value_text    => jsonb_build_object(
+                            'message_type', 'response',
+                            'rsp_id',       p_rsp_id,
+                            'req_id',       r_response.req_id,
+                            'itm_id',       r_response.itm_id,
+                            'inf_id',       r_response.inf_id,
+                            'call_uuid',    l_call_uuid,
+                            'request_size', octet_length(l_send_x)
+                         )::text,
+      p_inf_id        => r_response.inf_id,
+      p_req_id        => r_response.req_id,
+      p_itm_id        => r_response.itm_id,
+      p_rsp_id        => p_rsp_id
+   );
+
+
+   /*
+    * Вызов XXL.
+    */
+   CALL cbs_Bus_X.query_Bus_Text(
+      cSqueue_name => r_response.request_queue::varchar,
+      cDqueue_name => r_response.response_queue::varchar,
+
+      cXml         => l_send_x::text,
+
+      busType      => r_response.gate_alias::varchar,
+      nWait        => r_response.request_ttl_ms::numeric,
+
+      SOUT         => l_result_x,
+      ERRORMSG     => l_result_info,
+      cCor         => l_result_corr,
+      res          => l_result_code
+   );
+
+
+   /*
+      Что отправили в mbus
+   */
+   CALL MI_logger.variable_Value(
+      p_logger_name   => cLogger,
+      p_variable_name => 'query_Bus_Text.SOUT.meta',
+      p_value_text    => jsonb_build_object(
+                            'rsp_id',        p_rsp_id,
+                            'req_id',        r_response.req_id,
+                            'itm_id',        r_response.itm_id,
+                            'call_uuid',     l_call_uuid,
+                            'bus_corr_id',   l_result_corr,
+                            'bus_result',    l_result_code,
+                            'response_size', octet_length(coalesce(l_result_x, ''))
+                         )::text,
+      p_inf_id        => r_response.inf_id,
+      p_req_id        => r_response.req_id,
+      p_itm_id        => r_response.itm_id,
+      p_rsp_id        => p_rsp_id
+   );
+
+
+   /*
+    * MBus вернул ошибку
+    *
+    * Статус mi_rsp здесь не трогаем. Ответ остается READY.
+    */
+   IF coalesce(l_result_code, ret_Fail) <> ret_OK THEN
+
+      -- raise -> handle exception
+      CALL MI_resultCtx.raise_fail(
+         p_result_code => c_err_Rsp_Bus_Return,
+         p_result_info => 'Error calling cbs_Bus_X.query_Bus_Text',
+         p_cause_code  => 'MBUS_ERROR',
+         p_cause_info  => l_result_info,
+         p_parameters  => jsonb_build_object(
+                             'rsp_id',          p_rsp_id,
+                             'req_id',          r_response.req_id,
+                             'itm_id',          r_response.itm_id,
+                             'inf_id',          r_response.inf_id,
+                             'status_cd',       r_response.status_cd,
+                             'call_uuid',       l_call_uuid,
+                             'bus_result_code', l_result_code,
+                             'bus_corr_id',     l_result_corr,
+                             'request_queue',   r_response.request_queue,
+                             'response_queue',  r_response.response_queue,
+                             'gate_alias',      r_response.gate_alias,
+                             'request_ttl_ms',  r_response.request_ttl_ms
+                          )
+      );
+
+   END IF;
+
+
+   -- тело ответа пустое, в конверете ответа из XXL
+   IF nullif(btrim(l_result_x), '') IS NULL THEN
+
+      -- raise -> handle exception
+      CALL MI_resultCtx.raise_fail(
+         p_result_code => c_err_Rsp_Empty_Response,
+         p_result_info => 'XXLResponse is empty',
+         p_parameters  => jsonb_build_object(
+                             'rsp_id',      p_rsp_id,
+                             'req_id',      r_response.req_id,
+                             'itm_id',      r_response.itm_id,
+                             'inf_id',      r_response.inf_id,
+                             'call_uuid',   l_call_uuid,
+                             'bus_corr_id', l_result_corr
+                          )
+      );
+
+   END IF;
+
+   /* Разбираем ответ из XXL */
+   BEGIN
+
+      p_result := MI_resultCtx.result_from_xml(l_result_x);
+
+   EXCEPTION
+      WHEN OTHERS THEN
+
+         CALL MI_resultCtx.raise_fail(
+            p_result_code => c_err_Rsp_Response_Parse,
+            p_result_info => 'Error parsing XXLResponse',
+            p_cause_code  => SQLSTATE,
+            p_cause_info  => SQLERRM,
+            p_parameters  => jsonb_build_object(
+                                'rsp_id',      p_rsp_id,
+                                'req_id',      r_response.req_id,
+                                'itm_id',      r_response.itm_id,
+                                'inf_id',      r_response.inf_id,
+                                'call_uuid',   l_call_uuid,
+                                'bus_corr_id', l_result_corr
+                             )
+         );
+
+   END;
+
+
+   /*
+    * to_Sent не делаем!.
+    *
+    * Если XXL успешно опубликовал response, он сам вызыет MI_Response_Api.to_Sent(rsp_id).
+    */
+   CALL MI_logger.log_exec_result(
+      p_logger_name   => cLogger,
+      p_result        => p_result,
+      p_inf_id        => r_response.inf_id,
+      p_req_id        => r_response.req_id,
+      p_itm_id        => r_response.itm_id,
+      p_rsp_id        => p_rsp_id,
+      p_action_cd     => 'xxl_result',
+      p_context_value => p_result.result_code,
+      p_object_name   => cAction_Name
+   );
+
+
+   CALL MI_logger.exit_f (
+      p_logger_name   => cLogger,
+      p_message_text  => 'send_response finished',
+      p_inf_id        => r_response.inf_id,
+      p_req_id        => r_response.req_id,
+      p_itm_id        => r_response.itm_id,
+      p_rsp_id        => p_rsp_id,
+      p_details_text  => jsonb_build_object( 'result_code', p_result.result_code, 'is_success', p_result.is_success, 'call_uuid', l_call_uuid )::text
+   );
+
+   -- все обработали, выходим
+
+   RETURN;
+
+EXCEPTION
+   -- если что-то прилетело
+   WHEN OTHERS THEN
+   DECLARE
+      ex           TS.T_StackedDiagnostics;
+      l_error_Text varchar;
+   BEGIN
+
+      GET STACKED DIAGNOSTICS
+         ex.RETURNED_SQLSTATE    = RETURNED_SQLSTATE,
+         ex.MESSAGE_TEXT         = MESSAGE_TEXT,
+         ex.PG_EXCEPTION_DETAIL  = PG_EXCEPTION_DETAIL,
+         ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
+         ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;
+
+         l_error_Text := TS.WhenOthersError(cAction_Name, ex);
+
+         p_result := MI_resultCtx.from_exception(
+            p_sqlstate => ex.returned_sqlstate,
+            p_message  => ex.message_text,
+            p_detail   => ex.pg_exception_detail,
+            p_hint     => ex.pg_exception_hint
+         );
+
+      -- наше, "управляемое"
+      IF ex.returned_sqlstate IS DISTINCT FROM 'MI001' THEN
+
+         p_result.is_success  := false;
+         p_result.result_code := coalesce( p_result.result_code, c_err_Rsp_Unexpected );
+         p_result.result_info := coalesce( p_result.result_info, 'Unexpected error in ' || cAction_Name );
+         p_result.parameters  :=coalesce ( p_result.parameters, '{}'::jsonb ) || jsonb_build_object( 'error_info', l_error_Text );
+
+      END IF;
+
+      -- результат в лог, остальное считаем что XXL сам все разрулит!
+      CALL MI_logger.log_exec_result(
+         p_logger_name   => cLogger,
+         p_result        => p_result,
+         p_inf_id        => l_inf_id,
+         p_req_id        => l_req_id,
+         p_itm_id        => l_itm_id,
+         p_rsp_id        => p_rsp_id,
+         p_action_cd     => 'exception',
+         p_context_value => p_result.result_code,
+         p_object_name   => cAction_Name
+      );
+
+      RETURN;
+
+   END;
+
+END;
+$procedure$
 
 -- end_Of_Package
 ;
