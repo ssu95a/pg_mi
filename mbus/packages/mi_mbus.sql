@@ -243,10 +243,9 @@ BEGIN
 
    /*
       Вызов XXL через MBUS.
-
       Важно:
       если query_Bus_Text вернул ошибку, НЕ вызываем to_Error.
-      Это transport uncertainty: X не знает, получил XXL команду или нет.
+      XXI не знает, получил XXL команду или нет.
    */
    CALL cbs_Bus_X.query_Bus_Text(
 
@@ -310,8 +309,7 @@ BEGIN
 
    /*
       Разбор XML ответа XXL.
-      Ошибка разбора — ожидаемая интеграционная ошибка,
-      поэтому превращается в structured failure через raise_fail.
+      Ошибка разбора —  превращается в structured failure через raise_fail.
    */
    BEGIN
       p_result := MI_resultCtx.result_from_xml(l_result_x);
@@ -734,7 +732,7 @@ BEGIN
 
    /*
     * Обработка ошибки Multi-Bus фиксируется сам факт ошибки,
-    * никаких действий не производится - тк не ясно выполнилась в XXL команда или нет
+    * ничего более не делаем - тк не ясно выполнилась в XXL команда или нет
     */
    IF coalesce( l_result_code, ret_Fail ) <> ret_OK
    THEN
@@ -886,8 +884,7 @@ EXCEPTION
       /*
        * MI001 означает структурированную ошибку, сформированную MI_resultCtx.raise_fail.
        *
-       * Для остальных исключений задаётся локальный
-       * result_code процедуры.
+       * Для остальных исключений задаётся локальный result_code процедуры.
        */
       IF ex.returned_sqlstate IS DISTINCT FROM 'MI001' THEN
          p_result.is_success := false;
@@ -971,8 +968,8 @@ DECLARE
 
 BEGIN
 
-   CALL MI_logger.enter_f( p_logger_name   => cLogger, p_function_name => cAction_Name, p_message_text  => 'Sending business response to ' || cMultiBus_Gate,
-                           p_parameters    => jsonb_build_object( 'rsp_id',    p_rsp_id, 'call_uuid', l_call_uuid )::text, p_rsp_id => p_rsp_id );
+   CALL MI_logger.enter_f( p_logger_name => cLogger, p_function_name => cAction_Name, p_message_text  => 'Sending business response to ' || cMultiBus_Gate,
+                           p_parameters  => jsonb_build_object( 'rsp_id', p_rsp_id, 'call_uuid', l_call_uuid )::text, p_rsp_id => p_rsp_id );
 
    IF p_rsp_id IS NULL THEN
       CALL MI_resultCtx.raise_fail( p_result_code => c_err_Rsp_Not_Found, p_result_info => 'p_rsp_id is required' );

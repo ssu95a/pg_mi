@@ -354,6 +354,65 @@ begin
 
 	call MI_logger.exit_f( cLogger, cFunc, 'p_ret_code = ' || coalesce(p_ret_code::text, 'null') || ', p_ret_info = ' || coalesce(p_ret_info, 'null') );
 
+	if p_ret_code = ret_OK then
+
+		p_ret_code := ret_Fail;
+
+		-- отправляем ответ
+		declare
+			
+			l_rsp_id   numeric(12);
+	      l_res_code int4;
+	      l_res_info varchar;
+
+			l_send_result  MI_resultCtx.exec_Result;  -- результат отправки в XXL
+		begin
+
+	         l_rsp_id := MI_Response_Api.create_response(
+	            p_req_id      => l_req_id,
+	            p_itm_id      => p_itm_id,
+	            p_category_cd => case p_ret_code when ret_OK then 'SUCCESS' else 'FAILED' end,
+	            p_result_code => 'OK',
+	            p_result_info => p_ret_info,
+	            p_payload     => jsonb_build_object( 'confirmed_at', clock_timestamp() )
+	         );
+	   
+	         -- Переводим ответ в статус Ready
+	         CALL MI_Response_Api.to_ready (
+	            p_rsp_id   => l_rsp_id,
+	            p_res_code => l_res_code,
+	            p_res_info => l_res_info
+	         );
+	   
+	         if l_res_code <> 0 then
+	            p_ret_info := 'Ошибка перевода ответа в статус Ready: ' || l_res_info;
+	            return;
+	         end if;
+
+	         -- Отправляем ответ в XXL
+	         CALL mi_mbus.send_response(l_rsp_id, l_send_result);
+	   
+	         if not l_send_result.is_success then
+	            p_ret_code := RET_FAIL;
+	            p_ret_info := 'Ошибка отправки ответа в XXL: ' || COALESCE(l_send_result.result_info, 'неизвестная ошибка');
+	            return;
+	         END IF;
+	   
+	         p_ret_code := RET_OK;
+
+	      EXCEPTION
+	         WHEN OTHERS THEN
+	            p_ret_info := SQLERRM;
+	            CALL mi_logger.error(
+	               p_logger_name   => cPkg_Name,
+	               p_message_text  => 'Ошибка в update_req_status',
+	               p_details_text  => SQLERRM,
+	               p_inf_id        => c_Inf_Id
+	            );
+	      END;
+
+   end if;
+      
 END;
 $procedure$
 
