@@ -254,10 +254,15 @@ begin
 	end if;
 
 	-- проверка что уже l_ctaxreq_id был обработан
-	SELECT r.req_id
-	 	 INTO l_req_id
+	SELECT r.req_id,
+	       i.itm_id
+	  INTO l_req_id,
+	       l_itm_id
 	  FROM xxi.mi_req r
-	 WHERE r.inf_id = 10 AND r.ctaxreq_id = l_ctaxreq_id
+	  JOIN xxi.mi_0010 i
+	    ON i.req_id = r.req_id
+	 WHERE r.inf_id = 10
+	   AND r.ctaxreq_id = l_ctaxreq_id
 	 LIMIT 1;
 
 	if l_req_id is not null then
@@ -352,8 +357,6 @@ begin
 
 	end main; -- end main
 
-	call MI_logger.exit_f( cLogger, cFunc, 'p_ret_code = ' || coalesce(p_ret_code::text, 'null') || ', p_ret_info = ' || coalesce(p_ret_info, 'null') );
-
 	if p_ret_code = ret_OK then
 
 		p_ret_code := ret_Fail;
@@ -370,8 +373,8 @@ begin
 
 	         l_rsp_id := MI_Response_Api.create_response(
 	            p_req_id      => l_req_id,
-	            p_itm_id      => p_itm_id,
-	            p_category_cd => case p_ret_code when ret_OK then 'SUCCESS' else 'FAILED' end,
+	            p_itm_id      => l_itm_Id,
+	            p_category_cd => 'SUCCESS',
 	            p_result_code => 'OK',
 	            p_result_info => p_ret_info,
 	            p_payload     => jsonb_build_object( 'confirmed_at', clock_timestamp() )
@@ -402,18 +405,25 @@ begin
 
 	      EXCEPTION
 	         WHEN OTHERS THEN
+	            
 	            p_ret_info := SQLERRM;
-	            CALL mi_logger.error(
+
+	            CALL mi_logger.error (
 	               p_logger_name   => cPkg_Name,
-	               p_message_text  => 'Ошибка в update_req_status',
+	               p_message_text  => 'Ошибка формирования/отправки business response. ' || cFunc,
 	               p_details_text  => SQLERRM,
-	               p_inf_id        => c_Inf_Id
+	               p_inf_id        => c_Inf_Id,
+						p_req_id 		 => l_req_id,
+						p_itm_id 		 => l_itm_id,
+						p_rsp_id 		 => l_rsp_id	               
 	            );
 	      END;
 
    end if;
-      
+	call MI_logger.exit_f( cLogger, cFunc, 'p_ret_code = ' || coalesce(p_ret_code::text, 'null') || ', p_ret_info = ' || coalesce(p_ret_info, 'null') );
 END;
+
+
 $procedure$
 
 ; -- end_Of_Package
