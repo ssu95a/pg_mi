@@ -313,24 +313,29 @@ begin
 
                EXIT main;
 
-            end if;   
+            end if;
 
             declare
                l_parent_req_id numeric(12) := l_req_id;
-            begin   
+            begin
 
-            -- дубликат по бизнес Id, делаем новую запись, со ссылкой на предыдущую   
-             l_req_id := MI_Request_Api.create_Request(
-                p_inf_id                => 10,
-                p_correlation_id        => p_correlation_id,
-                p_original_request_uuid => p_original_request_uuid,
-                p_ctaxreq_id            => null,
-                p_message_uuid          => p_message_uuid,
-                p_status_cd             => 1,
-                p_parent_req_id         => l_parent_req_id
-             );
+               -- дубликат по бизнес Id, делаем новую запись, со ссылкой на предыдущую   
+                l_req_id := MI_Request_Api.create_Request(
+                   p_inf_id                => 10,
+                   p_correlation_id        => p_correlation_id,
+                   p_original_request_uuid => p_original_request_uuid,
+                   p_ctaxreq_id            => null,
+                   p_message_uuid          => p_message_uuid,
+                   p_status_cd             => 1,
+                   p_parent_req_id         => l_parent_req_id
+                );
+
+                p_ret_code := ret_OK;
+                p_ret_info := 'duplicate registered; req_id=' || l_req_id || '; parent_req_id=' || l_parent_req_id || '; itm_id=' || l_itm_id;
 
              end;
+
+             EXIT main;
 
          END IF;
 
