@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS xxi.mi_req (
       result_time    timestamp         NULL,
       message_uuid   uuid              NULL,
       original_request_uuid
-                     uuid              NULL
+                     uuid              NULL,
+      parent_req_id  numeric(12)       NULL
 
 -- Constraints:
 -- FK
@@ -43,6 +44,12 @@ CREATE TABLE IF NOT EXISTS xxi.mi_req (
    CONSTRAINT fk_mi_req__smr
       FOREIGN KEY (idsmr)
          REFERENCES "SMR"(idsmr),
+
+   -- родительский запрос
+   CONSTRAINT fk_mi_req__parent_req
+      foreign key (parent_req_id)
+         references xxi.mi_req_id (req_id),
+
 -- Check
 -- Статус запроса
    CONSTRAINT ck_mi_req__status_cd
@@ -78,7 +85,11 @@ create index if not exists ix_mi_req__original_request_uuid
       tablespace indexes
          where original_request_uuid is not null
 ;
-
+create index if not exists ix_mi_req__parent_req_id
+   on xxi.mi_req (parent_req_id)
+      tablespace indexes
+         where parent_req_id is not null
+;
 -- Partitions
 -- Валидация физ лиц
 create table IF NOT EXISTS xxi.mi_req_0007
@@ -163,4 +174,9 @@ COMMENT ON COLUMN xxi.mi_req.message_uuid is
    'ИД сообщения MI на который сформирован запрос или получен ответ'
 ;
 COMMENT ON COLUMN xxi.mi_req.original_request_uuid IS
-   'ID исходного запроса в MI для входящих business-запросов MI -> XXL -> XXI';
+   'ID исходного запроса в MI для входящих business-запросов MI -> XXL -> XXI'
+;
+COMMENT ON COLUMN xxi.mi_req.parent_req_id IS
+   'ID родительского запроса в MI'
+   ;
+

@@ -9,7 +9,7 @@ DECLARE
    /*
       Общая логика request header для mi_req
    */
-   cVersion       CONSTANT varchar(100) := '$id: {1.0.0} {13.03.2026}$';
+   cVersion       CONSTANT varchar(100) := '$id: {1.1.0} {08.09.2026}$';
    cLogger        CONSTANT varchar(20 ) := 'mi.req'; 
    cPkg_Name      CONSTANT varchar(20 ) := 'MI_Request_Api'; 
 
@@ -41,7 +41,7 @@ AS
 $function$
    #package
 BEGIN
-   RETURN cVersion;
+   return cVersion;
 END;
 $function$
 
@@ -155,7 +155,8 @@ CREATE FUNCTION create_Request (
    in p_itype                 numeric DEFAULT NULL,
    in p_i1                    numeric DEFAULT NULL,
    in p_i2                    numeric DEFAULT NULL,
-   in p_i3                    numeric DEFAULT NULL
+   in p_i3                    numeric DEFAULT NULL,
+   in p_parent_req_id         numeric default null
 )
    RETURNS 
       numeric
@@ -187,7 +188,8 @@ BEGIN
       itype,
       i1,
       i2,
-      i3
+      i3,
+      parent_req_id
    )
    VALUES (
       p_inf_id,
@@ -201,7 +203,8 @@ BEGIN
       p_itype,
       p_i1,
       p_i2,
-      p_i3
+      p_i3,
+      p_parent_req_id
    );
    
    return l_req_id;

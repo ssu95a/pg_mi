@@ -16,6 +16,8 @@ DECLARE
 	ret_OK    CONSTANT int4 := 0;
 	ret_FAIL  CONSTANT int4 := -1;
 
+	cInf_id   CONSTANT numeric := 10::numeric;
+
 BEGIN
 	raise debug 'Package "%" - % - initialized', cPkg_Name, cVersion;
 END;
@@ -191,239 +193,368 @@ declare
 
    cFunc constant varchar(50) := cPkg_Name || '.apply_Request'::varchar;
 
-	l_payLoad 		jsonb;
+   l_payLoad jsonb;
 
-	l_req_Id  		numeric(12);
-	l_itm_Id  		numeric(12);
+   l_req_Id numeric(12);
+   l_itm_Id numeric(12);
+   l_rsp_Id numeric(12);
 
-	l_person_Id 	numeric(12);
-	l_person_J  	jsonb;
+   l_original_request_uuid uuid; -- для проверки дубликатов
 
-	l_doc_Typ_Cod	varchar;
-	l_doc_Typ_Num	numeric;
-	l_doc_Ser_num	varchar;
-	l_doc_Ser		varchar;
-	l_doc_Num		varchar;
 
-   l_cTaxReq_Id   varchar;
+   l_person_Id   numeric(12);
+   l_person_J    jsonb;
 
-	l_update17Lnk  numeric := MI_prp.get_Inf_Property( 23, 'INF_23_UPDATE_17_LNK', '0' )::numeric;
+   l_doc_Typ_Cod varchar;
+   l_doc_Typ_Num numeric;
+   l_doc_Ser_num varchar;
+   l_doc_Ser     varchar;
+   l_doc_Num     varchar;
+
+   l_cTaxReq_Id varchar;
+
+   l_update17Lnk numeric := MI_prp.get_Inf_Property( 23, 'INF_23_UPDATE_17_LNK', '0' )::numeric;
+
+   l_res_code int4;
+   l_res_info varchar;
+
+   l_send_result MI_resultCtx.exec_Result;
 
 begin
 
-   call MI_logger.enter_f( cLogger, cFunc, 'p_message_uuid = ' || p_message_uuid || ', p_original_request_uuid = ' || p_original_request_uuid );
+   CALL MI_logger.enter_f( cLogger, cFunc, 'p_message_uuid = ' || p_message_uuid || ', p_original_request_uuid = ' || p_original_request_uuid);
 
    p_ret_code := ret_Fail;
    p_ret_info := NULL;
 
-   <<main>>
-   begin
+   /*
+    * Регистрация item + request на ответ
+    */
+   <<registration>>
+   BEGIN AUTONOMOUS
 
-   if p_message_uuid is null then
-      p_ret_info := 'p_message_uuid is null';
-      exit main;
-   end if;
+      <<main>>
+      BEGIN
 
-   if p_request_time is null then
-      p_ret_info := '"p_request_time" is null';
-      exit main;
-   end if;
+         /*
+          * Валидация входных параметров.
+          */
+         IF p_message_uuid IS NULL THEN
+            p_ret_info := 'p_message_uuid is null';
+            EXIT main;
+         END IF;
 
-	if p_original_request_uuid is null then
-	   p_ret_info := 'p_original_request_uuid is null';
-      exit main;
-	end if;
+         IF p_request_time IS NULL THEN
+            p_ret_info := '"p_request_time" is null';
+            EXIT main;
+         END IF;
+
+         IF p_original_request_uuid IS NULL THEN
+            p_ret_info := 'p_original_request_uuid is null';
+            EXIT main;
+         END IF;
+
+         IF p_payload_text IS NULL OR btrim(p_payload_text) = ''
+         THEN
+            p_ret_info := 'p_payload_text is null';
+            EXIT main;
+         END IF;
+
+         /*
+          * Payload.
+          */
+         CALL MI_item_Result_Api.parse_Json_Payload(
+            p_payload_text,
+            l_payLoad,
+            p_ret_code,
+            p_ret_Info
+         );
+
+         IF p_ret_code <> ret_OK THEN
+            EXIT main;
+         END IF;
 
 
-	if p_payload_text is null or btrim(p_payload_text) = '' then
-      p_ret_info := 'p_payload_text is null';
-      exit main;
-	end if;
+         l_ctaxreq_Id := btrim(l_payLoad ->> 'idRequest');
 
-	call MI_item_Result_Api.parse_Json_Payload( p_payload_text, l_payLoad, p_ret_code, p_ret_Info );
+         IF l_ctaxreq_Id IS NULL OR l_ctaxreq_Id = ''
+         THEN
+            p_ret_info :='"idRequest" is null or empty in payload';
+            EXIT main;
+         END IF;
 
-	if p_ret_code <> ret_OK then
-      exit main;
-	end if;
 
-	l_ctaxreq_Id := btrim(l_payLoad ->> 'idRequest');
+         /*
+          * Запрос уже мог быть зарегистрирован раньше.
+          * Также поднимаем и req_id, и itm_id.
+          */
+         SELECT
+            r.req_id,
+            i.itm_id,
+            r.original_request_uuid
+         INTO
+            l_req_id,
+            l_itm_id,
+            l_original_request_uuid
+         FROM xxi.mi_req r
+         JOIN xxi.mi_0010 i
+           ON i.req_id = r.req_id
+         WHERE r.inf_id = 10
+           AND r.ctaxreq_id = l_ctaxreq_id
+         LIMIT 1;
 
-	if l_ctaxreq_Id is null or l_ctaxreq_Id = '' then
-	   p_ret_info := '"idRequest" is null or empty in payload';
-      exit main;
-	end if;
 
-	-- проверка что уже l_ctaxreq_id был обработан
-	SELECT r.req_id,
-	       i.itm_id
-	  INTO l_req_id,
-	       l_itm_id
-	  FROM xxi.mi_req r
-	  JOIN xxi.mi_0010 i
-	    ON i.req_id = r.req_id
-	 WHERE r.inf_id = 10
-	   AND r.ctaxreq_id = l_ctaxreq_id
-	 LIMIT 1;
+         IF l_req_id IS NOT NULL THEN
 
-	if l_req_id is not null then
-	   p_ret_code := ret_ok;
-	   p_ret_info := 'already registered; req_id=' || l_req_id;
-      exit main;
-	end if;
+            if l_original_request_uuid = p_original_request_uuid then
 
-	l_doc_Typ_Cod := replace( l_payLoad -> 'identityDocument' ->> 'docType', ' ', '' );
+               p_ret_code := ret_OK;
+               p_ret_info := 'already registered; req_id=' || l_req_id || '; itm_id=' || l_itm_id || ', original_request_uuid=' || p_original_request_uuid;
 
-	/* Разбираем тип документа */
-   SELECT MIN(pud.iPudId)
-          INTO l_doc_Typ_Num
-     FROM pud
-    WHERE 
-          pud.cpudCode9 = l_doc_Typ_Cod
-      AND pud.ipuduse = 0;
+               EXIT main;
 
-	if l_doc_Typ_Num is null then
-		p_ret_Info := 'Не удается по коду "' || l_doc_Typ_Cod  || '" определить тип ДУЛа в таблице pud'; 
-      exit main;
-	end if;
+            end if;   
 
-	/* Разбираем серию номер документа */
-   IF l_doc_Typ_Cod = '21' THEN
-      -- Паспорт может приходить по разному
-		l_doc_Ser_num := replace( l_payLoad -> 'identityDocument' ->> 'seriesNumber', ' ', '' );
-	   l_doc_Ser := SUBSTR( l_doc_Ser_num, 1, 4 );
-      l_doc_Num := SUBSTR( l_doc_Ser_num, 5 );
-   ELSE         
-		l_doc_Ser_num := l_payLoad -> 'identityDocument' ->> 'seriesNumber';
-      l_doc_Ser := trim(REGEXP_SUBSTR( l_doc_Ser_num, '\w*' ));
-      l_doc_Num := trim(REGEXP_SUBSTR( l_doc_Ser_num, '\s+\w*' ));
-   END IF;         
+            declare
+               l_parent_req_id numeric(12) := l_req_id;
+            begin   
 
-   IF l_doc_Num IS NULL THEN 
-      l_doc_Num := l_doc_Ser; 
-      l_doc_Ser := NULL; 
+            -- дубликат по бизнес Id, делаем новую запись, со ссылкой на предыдущую   
+             l_req_id := MI_Request_Api.create_Request(
+                p_inf_id                => 10,
+                p_correlation_id        => p_correlation_id,
+                p_original_request_uuid => p_original_request_uuid,
+                p_ctaxreq_id            => null,
+                p_message_uuid          => p_message_uuid,
+                p_status_cd             => 1,
+                p_parent_req_id         => l_parent_req_id
+             );
+
+             end;
+
+         END IF;
+
+         /*
+          * Тип документа.
+          */
+         l_doc_Typ_Cod := replace( l_payLoad -> 'identityDocument' ->> 'docType', ' ', '' );
+
+         SELECT MIN(pud.iPudId)
+           INTO l_doc_Typ_Num
+           FROM pud
+          WHERE pud.cpudCode9 = l_doc_Typ_Cod
+            AND pud.ipuduse = 0;
+
+         IF l_doc_Typ_Num IS NULL THEN
+
+            p_ret_Info := 'Не удается по коду "' || l_doc_Typ_Cod || '" определить тип ДУЛа в таблице pud';
+            EXIT main;
+
+         END IF;
+
+
+         /*
+          * Серия/номер документа.
+          */
+         IF l_doc_Typ_Cod = '21' THEN
+
+            l_doc_Ser_num := replace( l_payLoad -> 'identityDocument' ->> 'seriesNumber', ' ', '' );
+            l_doc_Ser 	  := SUBSTR(l_doc_Ser_num, 1, 4);
+            l_doc_Num 	  := SUBSTR(l_doc_Ser_num, 5);
+
+         ELSE
+
+            l_doc_Ser_num := l_payLoad -> 'identityDocument' ->> 'seriesNumber';
+            l_doc_Ser := trim( REGEXP_SUBSTR( l_doc_Ser_num,  '\w*'   ));
+            l_doc_Num := trim( REGEXP_SUBSTR( l_doc_Ser_num, '\s+\w*' ));
+
+         END IF;
+
+
+         IF l_doc_Num IS NULL THEN
+            l_doc_Num := l_doc_Ser;
+            l_doc_Ser := NULL;
+         END IF;
+
+
+         /*
+          * Person.
+          */
+         l_person_J :=
+            MI_0010_Api.build_Json_Person(
+
+               l_payLoad -> 'fullName' ->> 'family',
+               l_payLoad -> 'fullName' ->> 'firstName',
+               l_payLoad -> 'fullName' ->> 'patronymic',
+               l_payLoad ->> 'inn',
+               NULLIF(
+                  l_payLoad ->> 'birthDate', ''
+               )::date,
+               NULLIF(
+                  l_payLoad ->> 'deathDate',''
+               )::date,
+
+               l_doc_Typ_Num,
+               l_doc_Ser,
+               l_doc_Num,
+
+               NULLIF( l_payLoad -> 'identityDocument' ->> 'issueDate', '' )::date
+            );
+
+         l_person_id := mi_person_Api.get_Or_Create( cInf_id, l_person_J );
+
+         /*
+          * Заголовок запроса.
+          */
+         l_req_Id :=
+            MI_Request_Api.create_Request(
+               p_inf_id                => cInf_id,
+               p_correlation_id        => p_correlation_id,
+               p_original_request_uuid => p_original_request_uuid,
+               p_ctaxreq_id            => l_ctaxreq_id,
+               p_message_uuid          => p_message_uuid,
+               p_status_cd             => 1::numeric
+            );
+
+         /*
+          * Item запроса.
+          */
+         INSERT INTO xxi.mi_0010 (
+            req_id,
+            message_uuid,
+            person_id,
+            rec_num,
+            rec_date,
+            zags_code,
+            zags_name,
+            dereg_date,
+            ipr_dbth,
+            ipr_ddth,
+            ipr_cus17
+         )
+         VALUES (
+            l_req_Id,
+            p_message_uuid,
+            l_person_id,
+            l_payLoad  ->> 'actRecordNumber',
+            (l_payLoad ->> 'actRecordDate')::date,
+            l_payLoad  ->> 'registryOfficeCode',
+            l_payLoad  ->> 'registryOfficeName',
+            (l_payLoad ->> 'deregistrationDate')::date,
+            (l_payLoad ->> 'birthDateFlag')::numeric,
+            (l_payLoad ->> 'deathDateFlag')::numeric,
+            l_update17Lnk
+         )
+         RETURNING itm_Id
+              INTO l_itm_Id;
+
+         p_ret_code := ret_OK;
+         p_ret_info := 'registered; req_id=' || l_req_Id || '; itm_id=' || l_itm_Id;
+
+      END main;
+
+
+      /*
+       * Если request/item зарегистрирован,
+       * в той же AT создаём response.
+       */
+      IF p_ret_code = ret_OK THEN
+
+         l_rsp_id := MI_Response_Api.create_response (
+
+               p_req_id      => l_req_id,
+               p_itm_id      => l_itm_id,
+
+               p_category_cd => 'SUCCESS',
+               p_result_code => 'OK',
+
+               p_result_info => p_ret_info,
+
+               p_payload     => jsonb_build_object( 'confirmed_at', clock_timestamp() ) );
+
+         CALL MI_Response_Api.to_ready(
+            p_rsp_id   => l_rsp_id,
+            p_res_code => l_res_code,
+            p_res_info => l_res_info
+         );
+
+         /*
+          * Не частичный NEW response.
+          * Ошибка откатывает всю AT.
+          */
+         IF l_res_code <> ret_OK THEN
+            RAISE EXCEPTION 'Ошибка перевода business response в READY: %', coalesce( l_res_info, 'unknown error' );
+         END IF;
+
+      END IF;
+
+   EXCEPTION
+      WHEN OTHERS THEN
+
+         /*
+          * Exception все откатит
+          */
+         p_ret_code := ret_Fail;
+         p_ret_info := SQLERRM;
+
+         CALL mi_logger.error(
+         	p_logger_name  => cPkg_Name,
+            p_message_text => 'Ошибка регистрации request/item/response. ' || cFunc,
+            p_details_text => SQLERRM,
+
+            p_inf_id       => cInf_id,
+            p_req_id       => l_req_id,
+            p_itm_id       => l_itm_id,
+            p_rsp_id       => l_rsp_id
+         );
+
+   END registration; -- AT-commit
+
+
+   /*
+    * Transaction уже завершена. req/item/rsp READY зафиксированы.
+    */
+   IF p_ret_code = ret_OK AND l_rsp_id IS NOT NULL
+   THEN
+
+      BEGIN
+
+         CALL mi_mbus.send_response( l_rsp_id, l_send_result );
+
+         IF NOT l_send_result.is_success THEN
+
+            CALL mi_logger.error(
+               p_logger_name  => cPkg_Name,
+               p_message_text => 'Business response оставлен READY: ошибка отправки в XXL. ' || cFunc,
+               p_details_text => coalesce( l_send_result.result_info, 'неизвестная ошибка' ),
+
+               p_inf_id => cInf_id,
+               p_req_id => l_req_id,
+               p_itm_id => l_itm_id,
+               p_rsp_id => l_rsp_id
+            );
+
+         END IF;
+
+
+      EXCEPTION
+         WHEN OTHERS THEN
+
+            CALL mi_logger.error( p_logger_name  => cPkg_Name, p_message_text => 'Business response оставлен READY: ошибка отправки в XXL. ' || cFunc, p_details_text => SQLERRM,
+               p_inf_id => cInf_id,
+               p_req_id => l_req_id,
+               p_itm_id => l_itm_id,
+               p_rsp_id => l_rsp_id
+            );
+
+      END;
+
    END IF;
 
-	l_person_J := MI_0010_Api.build_Json_Person (
-		
-		l_payLoad -> 'fullName' ->> 'family',
-		l_payLoad -> 'fullName' ->> 'firstName',
-		l_payLoad -> 'fullName' ->> 'patronymic',
-		
-		l_payLoad ->> 'inn',
+   CALL MI_logger.exit_f( p_logger_name=>cLogger, p_message_text=>cFunc, p_details_text=>'p_ret_code = ' || coalesce( p_ret_code::text, 'null' ) || ', p_ret_info = ' || coalesce( p_ret_info, 'null' ) );
 
-		NULLIF( l_payLoad ->> 'birthDate', '' )::date,
-		NULLIF( l_payLoad ->> 'deathDate', '' )::date,
-
-		l_doc_Typ_Num,
-		l_doc_Ser,
-		l_doc_Num,
-		NULLIF(l_payLoad -> 'identityDocument' ->> 'issueDate', '')::date
-	);
-
-	l_person_id := mi_person_Api.get_Or_Create( 10::numeric, l_person_J );
-
-	/*
-		Пишем заголовок внешнего запроса
-	*/
-	l_req_Id := MI_Request_Api.create_Request(
-	   p_inf_id                => 10::numeric,
-	   p_correlation_id        => p_correlation_id,
-	   p_original_request_uuid => p_original_request_uuid,
-	   p_ctaxreq_id            => l_ctaxreq_id,
-	   p_message_uuid          => p_message_uuid,
-	   p_status_cd             => 1::numeric
-	);
-
-	/* Данные внешнего запроса */
-	insert into 
-		xxi.mi_0010( req_id, message_uuid, person_id, rec_num, rec_date, zags_code, zags_name, dereg_date, ipr_dbth, ipr_ddth, ipr_cus17 )
-	values( l_req_Id, 
-			  p_message_uuid, 
-			  l_person_id, 
-			  l_payLoad ->> 'actRecordNumber',
-			 (l_payLoad ->> 'actRecordDate')::date, 
-			  l_payLoad ->> 'registryOfficeCode',
-			  l_payLoad ->> 'registryOfficeName',
-			 (l_payLoad ->> 'deregistrationDate')::date,
-			 (l_payLoad ->> 'birthDateFlag')::numeric,
-			 (l_payLoad ->> 'deathDateFlag')::numeric,
-			 l_update17Lnk
-			 )	
-	returning
-		itm_Id into l_itm_Id;
-
-		p_ret_code := ret_OK;
-		p_ret_info := 'registered; req_id=' || l_req_Id || '; itm_id=' || l_itm_Id;
-
-	end main; -- end main
-
-	if p_ret_code = ret_OK then
-
-		p_ret_code := ret_Fail;
-
-		-- отправляем ответ
-		declare
-			
-			l_rsp_id   numeric(12);
-	      l_res_code int4;
-	      l_res_info varchar;
-
-			l_send_result  MI_resultCtx.exec_Result;  -- результат отправки в XXL
-		begin
-
-	         l_rsp_id := MI_Response_Api.create_response(
-	            p_req_id      => l_req_id,
-	            p_itm_id      => l_itm_Id,
-	            p_category_cd => 'SUCCESS',
-	            p_result_code => 'OK',
-	            p_result_info => p_ret_info,
-	            p_payload     => jsonb_build_object( 'confirmed_at', clock_timestamp() )
-	         );
-	   
-	         -- Переводим ответ в статус Ready
-	         CALL MI_Response_Api.to_ready (
-	            p_rsp_id   => l_rsp_id,
-	            p_res_code => l_res_code,
-	            p_res_info => l_res_info
-	         );
-	   
-	         if l_res_code <> 0 then
-	            p_ret_info := 'Ошибка перевода ответа в статус Ready: ' || l_res_info;
-	            return;
-	         end if;
-
-	         -- Отправляем ответ в XXL
-	         CALL mi_mbus.send_response(l_rsp_id, l_send_result);
-	   
-	         if not l_send_result.is_success then
-	            p_ret_code := RET_FAIL;
-	            p_ret_info := 'Ошибка отправки ответа в XXL: ' || COALESCE(l_send_result.result_info, 'неизвестная ошибка');
-	            return;
-	         END IF;
-	   
-	         p_ret_code := RET_OK;
-
-	      EXCEPTION
-	         WHEN OTHERS THEN
-	            
-	            p_ret_info := SQLERRM;
-
-	            CALL mi_logger.error (
-	               p_logger_name   => cPkg_Name,
-	               p_message_text  => 'Ошибка формирования/отправки business response. ' || cFunc,
-	               p_details_text  => SQLERRM,
-	               p_inf_id        => c_Inf_Id,
-						p_req_id 		 => l_req_id,
-						p_itm_id 		 => l_itm_id,
-						p_rsp_id 		 => l_rsp_id	               
-	            );
-	      END;
-
-   end if;
-	call MI_logger.exit_f( cLogger, cFunc, 'p_ret_code = ' || coalesce(p_ret_code::text, 'null') || ', p_ret_info = ' || coalesce(p_ret_info, 'null') );
 END;
-
-
 $procedure$
+
 
 ; -- end_Of_Package
